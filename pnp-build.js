@@ -1,65 +1,24 @@
-// build funcs
 const tasks = require("./build/tools/buildsystem").Tasks.Build,
     path = require("path");
 
-const defaultBuildPipeline = [
+module.exports = {
 
-    tasks.buildProject,
-    tasks.buildProjectES5,
-    tasks.copyAssets,
-    tasks.copyPackageFile,
-];
+    packageRoot: path.resolve("./packages/"),
 
-/**
- * The configuration used to build the project
- */
-const config = {
+    exclude: ["documentation"],
 
-    // root location, relative 
-    packageRoot: path.resolve(".\\packages\\"),
-
-    // the list of packages to be built, in order
-    // can be a string name or a plain object with additional settings
-    /**
-     * Plain object format
-     * {
-     *      "name": string, // required
-     *      "assets": string[], // optional, default is config.assets
-     *      "buildChain": (ctx) => Promise<void>[], // optional, default is config.buildChain
-     * }
-     * 
-     */
-    packages: [
-        "logging",
-        "common",
-        "odata",
-        {
-            name: "graph",
-            buildChain: [tasks.installNPMDependencies].concat(defaultBuildPipeline.slice(0)),
-        },
-        {
-            name: "sp",
-            buildChain: defaultBuildPipeline.slice(0).concat([tasks.replaceSPHttpVersion]),
-        },
-        "nodejs",
-        {
-            name: "sp-addinhelpers",
-            buildChain: [tasks.installNPMDependencies].concat(defaultBuildPipeline.slice(0)),
-        },
-        "config-store",
-        "pnpjs",
+    preBuildTasks: [
+        // function OR { packages: [], task: function }
     ],
 
-    // relative to the package folder
-    assets: [
-        "..\\..\\LICENSE",
-        "..\\readme.md",
-        "rollup.*.config.js",
-        "**\\*.md"
+    // these tsconfig files will all be transpiled per the settings in the file
+    buildTargets: [
+        path.resolve("./packages/tsconfig.json"),
+        path.resolve("./packages/tsconfig.es5.json"),
     ],
 
-    // the set of tasks run on each project during a build
-    buildPipeline: defaultBuildPipeline,
-}
-
-module.exports = config;
+    postBuildTasks: [
+        // this task is scoped to the files within the task
+        tasks.replaceVersion,
+    ],
+};

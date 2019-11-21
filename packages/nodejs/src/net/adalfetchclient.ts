@@ -1,28 +1,17 @@
-/// <reference path="types.d.ts" />
-declare var global: any;
-declare var require: (path: string) => any;
 import { AuthenticationContext } from "adal-node";
-const nodeFetch = require("node-fetch");
-import { Util, HttpClientImpl } from "@pnp/common";
-
-interface IAuthenticationContext {
-
-    new(authorityUrl: string): IAuthenticationContext;
-    acquireTokenWithClientCredentials(resource: string, clientId: string, clientSecret: string, callback: (err: any, token: AADToken) => void): void;
-}
-
-export interface AADToken {
-    accessToken: string;
-    expiresIn: number;
-    expiresOn: Date;
-    isMRRT: boolean;
-    resource: string;
-    tokenType: string;
-}
+import { AADToken } from "../types";
+import {
+    combine,
+    objectDefinedNotNull,
+    HttpClientImpl,
+    isUrlAbsolute,
+    extend,
+} from "@pnp/common";
+import { fetch } from "./fetch";
 
 export class AdalFetchClient implements HttpClientImpl {
 
-    private authContext: IAuthenticationContext;
+    private authContext: any;
 
     constructor(private _tenant: string,
         private _clientId: string,
@@ -30,34 +19,30 @@ export class AdalFetchClient implements HttpClientImpl {
         private _resource = "https://graph.microsoft.com",
         private _authority = "https://login.windows.net") {
 
-        global.Headers = nodeFetch.Headers;
-        global.Request = nodeFetch.Request;
-        global.Response = nodeFetch.Response;
-
-        this.authContext = new AuthenticationContext(Util.combinePaths(this._authority, this._tenant));
+        this.authContext = new AuthenticationContext(combine(this._authority, this._tenant));
     }
 
     public fetch(url: string, options: any): Promise<Response> {
 
-        if (Util.objectDefinedNotNull(options)) {
+        if (!objectDefinedNotNull(options)) {
             options = {
                 headers: new Headers(),
             };
-        } else if (Util.objectDefinedNotNull(options.headers)) {
-            options = Util.extend(options, {
+        } else if (!objectDefinedNotNull(options.headers)) {
+            options = extend(options, {
                 headers: new Headers(),
             });
         }
 
-        if (!Util.isUrlAbsolute(url)) {
-            url = Util.combinePaths(this._resource, url);
+        if (!isUrlAbsolute(url)) {
+            url = combine(this._resource, url);
         }
 
         return this.acquireToken().then(token => {
 
             options.headers.set("Authorization", `${token.tokenType} ${token.accessToken}`);
 
-            return nodeFetch(url, options);
+            return fetch(url, options);
         });
     }
 

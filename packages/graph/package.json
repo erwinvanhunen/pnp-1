@@ -5,8 +5,8 @@
   "main": "./index.js",
   "typings": "./index",
   "dependencies": {
-    "@microsoft/microsoft-graph-types": "^1.0.1",
-    "tslib": "1.8.1"
+    "@microsoft/microsoft-graph-types": "1.7.0",
+    "tslib": "1.10.0"
   },
   "peerDependencies": {
     "@pnp/common": "0.0.0-PLACEHOLDER",
@@ -18,11 +18,11 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnp/pnp/issues"
+    "url": "https://github.com/pnp/pnpjs/issues"
   },
-  "homepage": "https://github.com/pnp/pnp",
+  "homepage": "https://github.com/pnp/pnpjs",
   "repository": {
     "type": "git",
-    "url": "git://github.com/pnp/pnp"
+    "url": "git:github.com/pnp/pnpjs"
   }
 }

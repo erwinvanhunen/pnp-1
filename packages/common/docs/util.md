@@ -1,16 +1,11 @@
 # @pnp/common/util
 
-This module contains utility methods that you can import either individually from the common library or in a single static class "Util". Both are shown below.
+This module contains utility methods that you can import individually from the common library.
 
 ```TypeScript
 import {
-    Util,
     getRandomString,
 } from "@pnp/common";
-
-
-// use from Util static class
-console.log(Util.getRandomString(10));
 
 // use from individual;y imported method
 console.log(getRandomString(10));
@@ -21,7 +16,7 @@ console.log(getRandomString(10));
 Gets a callback function which will maintain context across async calls.
 
 ```TypeScript
-import { Util } from "@pnp/common";
+import { getCtxCallback } from "@pnp/common";
 
 const contextThis = {
     myProp: 6,
@@ -33,7 +28,7 @@ function theFunction() {
     return this.myProp;
 }
 
-const callback = Util.getCtxCallback(contextThis, theFunction);
+const callback = getCtxCallback(contextThis, theFunction);
 
 callback(); // returns 6
 
@@ -45,7 +40,7 @@ function theFunction2(g: number) {
     return this.myProp + g;
 }
 
-const callback2 = Util.getCtxCallback(contextThis, theFunction, 4);
+const callback2 = getCtxCallback(contextThis, theFunction, 4);
 
 callback2(); // returns 10 (6 + 4)
 ```
@@ -54,28 +49,28 @@ callback2(); // returns 10 (6 + 4)
 
 Manipulates a date, please see the [Stackoverflow discussion](https://stackoverflow.com/questions/1197928/how-to-add-30-minutes-to-a-javascript-date-object) from where this method was taken.
 
-## combinePaths
+## combine
 
 Combines any number of paths, normalizing the slashes as required
 
 ```TypeScript
-import { Util } from "@pnp/common";
+import { combine } from "@pnp/common";
 
 // "https://microsoft.com/something/more"
-const paths = Util.combinePaths("https://microsoft.com", "something", "more");
+const paths = combine("https://microsoft.com", "something", "more");
 
 // "also/works/with/relative"
-const paths2 = Util.combinePaths("/also/", "/works", "with/", "/relative\\");
+const paths2 = combine("/also/", "/works", "with/", "/relative\\");
 ```
 
 ## getRandomString
 
-Gets a random string consiting of the number of characters requested.
+Gets a random string consisting of the number of characters requested.
 
 ```TypeScript
-import { Util } from "@pnp/common";
+import { getRandomString } from "@pnp/common";
 
-const randomString = Util.getRandomString(10);
+const randomString = getRandomString(10);
 ```
 
 ## getGUID
@@ -96,11 +91,11 @@ Determines if a supplied variable represents an array.
 
 ## extend
 
-Merges a source object's own enumerable properties into a single target object. Similar to Object.assign, but allows control of overwritting of existing
+Merges a source object's own enumerable properties into a single target object. Similar to Object.assign, but allows control of overwriting of existing
 properties.
 
 ```TypeScript
-import { Util } from "@pnp/common";
+import { extend } from "@pnp/common";
 
 let obj1 = {
     prop: 1,
@@ -112,10 +107,10 @@ const obj2 = {
     prop3: 9,
 };
 
-const example1 = Util.extend(obj1, obj2);
+const example1 = extend(obj1, obj2);
 // example1 = { prop: 4, prop2: 2, prop3: 9 }
 
-const example2 = Util.extend(obj1, obj2, true);
+const example2 = extend(obj1, obj2, true);
 // example2 = { prop: 1, prop2: 2, prop3: 9 }
 ```
 
@@ -156,7 +151,7 @@ public static loadStylesheet(path: string, avoidCache: boolean): void {
 /**
  * Tests if a url param exists
  *
- * @param name The name of the url paramter to check
+ * @param name The name of the url parameter to check
  */
 public static urlParamExists(name: string): boolean {
     name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
@@ -167,7 +162,7 @@ public static urlParamExists(name: string): boolean {
 /**
  * Gets a url param value by name
  *
- * @param name The name of the paramter for which we want the value
+ * @param name The name of the parameter for which we want the value
  */
 public static getUrlParamByName(name: string): string {
     name = name.replace(/[\[]/, "\\[").replace(/[\]]/, "\\]");
@@ -179,7 +174,7 @@ public static getUrlParamByName(name: string): string {
 /**
  * Gets a url param by name and attempts to parse a bool value
  *
- * @param name The name of the paramter for which we want the boolean value
+ * @param name The name of the parameter for which we want the boolean value
  */
 public static getUrlParamBoolByName(name: string): boolean {
     const p = this.getUrlParamByName(name);

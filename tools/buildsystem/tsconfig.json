@@ -6,7 +6,10 @@
         "rootDir": ".",
         "outDir": "../../build/tools/buildsystem",
         "declaration": true,
-        "types": [],
+        "declarationMap": true,
+        "types": [
+            "node"
+        ],
         "lib": [
             "es6",
             "dom"
@@ -15,6 +18,8 @@
         "moduleResolution": "node"
     },
     "include": [
-        "./index.ts"
+        "./index.ts", 
+        "../node-utils/getSubDirectorieNames.js", 
+        "./**/*.ts"
     ]
 }

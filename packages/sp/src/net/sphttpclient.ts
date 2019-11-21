@@ -1,27 +1,26 @@
 import { DigestCache } from "./digestcache";
 import {
-    Util,
+    extend,
     mergeHeaders,
     FetchOptions,
     RequestClient,
+    getCtxCallback,
     HttpClientImpl,
 } from "@pnp/common";
 import { SPRuntimeConfig } from "../config/splibconfig";
-import { APIUrlException } from "../exceptions";
+import { extractWebUrl } from "../utils/extractweburl";
 
-export class SPHttpClient implements RequestClient  {
+export class SPHttpClient implements RequestClient {
 
     private _digestCache: DigestCache;
-    private _impl: HttpClientImpl;
 
-    constructor() {
-        this._impl = SPRuntimeConfig.fetchClientFactory();
+    constructor(private _impl: HttpClientImpl = SPRuntimeConfig.fetchClientFactory()) {
         this._digestCache = new DigestCache(this);
     }
 
     public fetch(url: string, options: FetchOptions = {}): Promise<Response> {
 
-        let opts = Util.extend(options, { cache: "no-cache", credentials: "same-origin" }, true);
+        let opts = extend(options, { cache: "no-cache", credentials: "same-origin" }, true);
 
         const headers = new Headers();
 
@@ -49,18 +48,13 @@ export class SPHttpClient implements RequestClient  {
             headers.append("User-Agent", "NONISV|SharePointPnP|PnPCoreJS/$$Version$$");
         }
 
-        opts = Util.extend(opts, { headers: headers });
+        opts = extend(opts, { headers: headers });
 
         if (opts.method && opts.method.toUpperCase() !== "GET") {
 
             // if we have either a request digest or an authorization header we don't need a digest
             if (!headers.has("X-RequestDigest") && !headers.has("Authorization")) {
-                const index = url.indexOf("_api/");
-                if (index < 0) {
-                    throw new APIUrlException();
-                }
-                const webUrl = url.substr(0, index);
-                return this._digestCache.getDigest(webUrl)
+                return this._digestCache.getDigest(extractWebUrl(url))
                     .then((digest) => {
                         headers.append("X-RequestDigest", digest);
                         return this.fetchRaw(url, opts);
@@ -76,32 +70,54 @@ export class SPHttpClient implements RequestClient  {
         // here we need to normalize the headers
         const rawHeaders = new Headers();
         mergeHeaders(rawHeaders, options.headers);
-        options = Util.extend(options, { headers: rawHeaders });
+        options = extend(options, { headers: rawHeaders });
 
         const retry = (ctx: RetryContext): void => {
 
-            this._impl.fetch(url, options).then((response) => ctx.resolve(response)).catch((response) => {
+            // handles setting the proper timeout for a retry
+            const setRetry = (response: Response) => {
+                let delay;
 
-                // Check if request was throttled - http status code 429
-                // Check if request failed due to server unavailable - http status code 503
-                if (response.status !== 429 && response.status !== 503) {
-                    ctx.reject(response);
+                if (response.headers.has("Retry-After")) {
+                    // if we have gotten a header, use that value as the delay value
+                    delay = parseInt(response.headers.get("Retry-After"), 10);
+                } else {
+                    // grab our current delay
+                    delay = ctx.delay;
+
+                    // Increment our counters.
+                    ctx.delay *= 2;
                 }
 
-                // grab our current delay
-                const delay = ctx.delay;
-
-                // Increment our counters.
-                ctx.delay *= 2;
                 ctx.attempts++;
 
                 // If we have exceeded the retry count, reject.
                 if (ctx.retryCount <= ctx.attempts) {
-                    ctx.reject(response);
+                    ctx.reject(Error(`Retry count exceeded (${ctx.retryCount}) for request. Response status: [${response.status}] ${response.statusText}`));
+                } else {
+                    // Set our retry timeout for {delay} milliseconds.
+                    setTimeout(getCtxCallback(this, retry, ctx), delay);
+                }
+            };
+
+            // send the actual request
+            this._impl.fetch(url, options).then((response) => {
+
+                if (response.status === 429) {
+                    // we have been throttled
+                    setRetry(response);
+                } else {
+                    ctx.resolve(response);
                 }
 
-                // Set our retry timeout for {delay} milliseconds.
-                setTimeout(Util.getCtxCallback(this, retry, ctx), delay);
+            }).catch((response: Response) => {
+
+                if (response.status === 503) {
+                    // http status code 503, we can retry this
+                    setRetry(response);
+                } else {
+                    ctx.reject(response);
+                }
             });
         };
 
@@ -120,22 +136,22 @@ export class SPHttpClient implements RequestClient  {
     }
 
     public get(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "GET" });
+        const opts = extend(options, { method: "GET" });
         return this.fetch(url, opts);
     }
 
     public post(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "POST" });
+        const opts = extend(options, { method: "POST" });
         return this.fetch(url, opts);
     }
 
     public patch(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "PATCH" });
+        const opts = extend(options, { method: "PATCH" });
         return this.fetch(url, opts);
     }
 
     public delete(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "DELETE" });
+        const opts = extend(options, { method: "DELETE" });
         return this.fetch(url, opts);
     }
 }

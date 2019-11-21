@@ -1,21 +1,25 @@
-import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection } from "./sharepointqueryable";
+import { SharePointQueryableInstance, SharePointQueryableCollection, defaultPath } from "./sharepointqueryable";
 import { SiteGroups } from "./sitegroups";
 import { BasePermissions } from "./types";
-import { Util, TypedHash } from "@pnp/common";
+import { extend, TypedHash, jsS, hOP } from "@pnp/common";
+import { metadata } from "./utils/metadata";
 
 /**
  * Describes a set of role assignments for the current scope
  *
  */
+@defaultPath("roleassignments")
 export class RoleAssignments extends SharePointQueryableCollection {
 
-    /**
-     * Creates a new instance of the RoleAssignments class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this role assignments collection
+    /**	
+     * Gets the role assignment associated with the specified principal id from the collection.	
+     *	
+     * @param id The id of the role assignment	
      */
-    constructor(baseUrl: string | SharePointQueryable, path = "roleassignments") {
-        super(baseUrl, path);
+    public getById(id: number) {
+        const ra = new RoleAssignment(this);
+        ra.concat(`(${id})`);
+        return ra;
     }
 
     /**
@@ -38,17 +42,6 @@ export class RoleAssignments extends SharePointQueryableCollection {
      */
     public remove(principalId: number, roleDefId: number): Promise<void> {
         return this.clone(RoleAssignments, `removeroleassignment(principalid=${principalId}, roledefid=${roleDefId})`).postCore();
-    }
-
-    /**
-     * Gets the role assignment associated with the specified principal id from the collection.
-     *
-     * @param id The id of the role assignment
-     */
-    public getById(id: number) {
-        const ra = new RoleAssignment(this);
-        ra.concat(`(${id})`);
-        return ra;
     }
 }
 
@@ -78,36 +71,21 @@ export class RoleAssignment extends SharePointQueryableInstance {
      * Deletes this role assignment
      *
      */
-    public delete(): Promise<void> {
-        return this.postCore({
-            headers: {
-                "X-HTTP-Method": "DELETE",
-            },
-        });
-    }
+    public delete = this._delete;
 }
 
 /**
  * Describes a collection of role definitions
  *
  */
+@defaultPath("roledefinitions")
 export class RoleDefinitions extends SharePointQueryableCollection {
 
-    /**
-     * Creates a new instance of the RoleDefinitions class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this role definitions collection
-     *
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "roledefinitions") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Gets the role definition with the specified id from the collection
-     *
-     * @param id The id of the role definition
-     *
+    /**	   
+     * Gets the role definition with the specified id from the collection	    
+     *	     
+     * @param id The id of the role definition	     
+     *	     
      */
     public getById(id: number): RoleDefinition {
         return new RoleDefinition(this, `getById(${id})`);
@@ -144,8 +122,11 @@ export class RoleDefinitions extends SharePointQueryableCollection {
      */
     public add(name: string, description: string, order: number, basePermissions: BasePermissions): Promise<RoleDefinitionAddResult> {
 
-        const postBody = JSON.stringify({
-            BasePermissions: Util.extend({ __metadata: { type: "SP.BasePermissions" } }, basePermissions),
+        const postBody = jsS({
+            BasePermissions: {
+                High: basePermissions.High.toString(),
+                Low: basePermissions.Low.toString(),
+            },
             Description: description,
             Name: name,
             Order: order,
@@ -168,6 +149,12 @@ export class RoleDefinitions extends SharePointQueryableCollection {
 export class RoleDefinition extends SharePointQueryableInstance {
 
     /**
+     * Deletes this role definition
+     *
+     */
+    public delete = this._delete;
+
+    /**
      * Updates this role definition with the supplied properties
      *
      * @param properties A plain object hash of values to update for the role definition
@@ -175,13 +162,14 @@ export class RoleDefinition extends SharePointQueryableInstance {
     /* tslint:disable no-string-literal */
     public update(properties: TypedHash<any>): Promise<RoleDefinitionUpdateResult> {
 
-        if (typeof properties.hasOwnProperty("BasePermissions") !== "undefined") {
-            properties["BasePermissions"] = Util.extend({ __metadata: { type: "SP.BasePermissions" } }, properties["BasePermissions"]);
+        if (hOP(properties, "BasePermissions") !== undefined) {
+            properties["BasePermissions"] = extend({ __metadata: { type: "SP.BasePermissions" } }, {
+                High: properties["BasePermissions"].High.toString(),
+                Low: properties["BasePermissions"].Low.toString(),
+            });
         }
 
-        const postBody = JSON.stringify(Util.extend({
-            "__metadata": { "type": "SP.RoleDefinition" },
-        }, properties));
+        const postBody = jsS(extend(metadata("SP.RoleDefinition"), properties));
 
         return this.postCore({
             body: postBody,
@@ -192,7 +180,7 @@ export class RoleDefinition extends SharePointQueryableInstance {
 
             let retDef: RoleDefinition = this;
 
-            if (properties.hasOwnProperty("Name")) {
+            if (hOP(properties, "Name")) {
                 const parent = this.getParent(RoleDefinitions, this.parentUrl, "");
                 retDef = parent.getByName(<string>properties["Name"]);
             }
@@ -204,18 +192,6 @@ export class RoleDefinition extends SharePointQueryableInstance {
         });
     }
     /* tslint:enable */
-
-    /**
-     * Deletes this role definition
-     *
-     */
-    public delete(): Promise<void> {
-        return this.postCore({
-            headers: {
-                "X-HTTP-Method": "DELETE",
-            },
-        });
-    }
 }
 
 /**
@@ -240,14 +216,5 @@ export interface RoleDefinitionAddResult {
  * Describes the role definitons bound to a role assignment object
  *
  */
-export class RoleDefinitionBindings extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the RoleDefinitionBindings class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this role definition bindings collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "roledefinitionbindings") {
-        super(baseUrl, path);
-    }
-}
+@defaultPath("roledefinitionbindings")
+export class RoleDefinitionBindings extends SharePointQueryableCollection { }

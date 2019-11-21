@@ -5,8 +5,8 @@
   "main": "./index.js",
   "typings": "./index",
   "dependencies": {
-    "tslib": "1.8.1",
-    "@types/sharepoint": "2013.1.9"
+    "tslib": "1.10.0",
+    "@types/sharepoint": "2016.1.3"
   },
   "peerDependencies": {
     "@pnp/common": "0.0.0-PLACEHOLDER",
@@ -17,11 +17,11 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnp/pnp/issues"
+    "url": "https://github.com/pnp/pnpjs/issues"
   },
-  "homepage": "https://github.com/pnp/pnp",
+  "homepage": "https://github.com/pnp/pnpjs",
   "repository": {
     "type": "git",
-    "url": "git://github.com/pnp/pnp"
+    "url": "git:github.com/pnp/pnpjs"
   }
 }

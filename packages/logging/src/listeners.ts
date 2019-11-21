@@ -51,8 +51,12 @@ export class ConsoleListener implements LogListener {
     private format(entry: LogEntry): string {
         const msg = [];
         msg.push("Message: " + entry.message);
-        if (typeof entry.data !== "undefined") {
-            msg.push(" Data: " + JSON.stringify(entry.data));
+        if (entry.data !== undefined) {
+            try {
+                msg.push(" Data: " + JSON.stringify(entry.data));
+            } catch (e) {
+                msg.push(` Data: Error in stringify of supplied data ${e}`);
+            }
         }
 
         return msg.join("");

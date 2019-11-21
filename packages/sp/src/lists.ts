@@ -4,38 +4,23 @@ import { ContentTypes } from "./contenttypes";
 import { Fields } from "./fields";
 import { Forms } from "./forms";
 import { Subscriptions } from "./subscriptions";
-import { SharePointQueryable, SharePointQueryableCollection } from "./sharepointqueryable";
+import { SharePointQueryable, SharePointQueryableCollection, defaultPath } from "./sharepointqueryable";
 import { SharePointQueryableSecurable } from "./sharepointqueryablesecurable";
-import { Util, TypedHash } from "@pnp/common";
-import { ControlMode, RenderListData, ChangeQuery, CamlQuery, ChangeLogitemQuery, ListFormData, RenderListDataParameters } from "./types";
+import { extend, TypedHash, hOP, jsS } from "@pnp/common";
+import { ControlMode, RenderListData, ChangeQuery, CamlQuery, ChangeLogitemQuery, ListFormData, RenderListDataParameters, ListItemFormUpdateValue } from "./types";
 import { UserCustomActions } from "./usercustomactions";
-import { spExtractODataId } from "./odata";
-import { NotSupportedInBatchException } from "./exceptions";
+import { odataUrlFrom } from "./odata";
 import { Folder } from "./folders";
+import { metadata } from "./utils/metadata";
+import { SiteScripts } from "..";
+import { toAbsoluteUrl } from "./utils/toabsoluteurl";
 
 /**
  * Describes a collection of List objects
  *
  */
+@defaultPath("lists")
 export class Lists extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the Lists class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this fields collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "lists") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Gets a list from the collection by title
-     *
-     * @param title The title of the list
-     */
-    public getByTitle(title: string): List {
-        return new List(this, `getByTitle('${title}')`);
-    }
 
     /**
      * Gets a list from the collection by guid id
@@ -49,6 +34,15 @@ export class Lists extends SharePointQueryableCollection {
     }
 
     /**
+     * Gets a list from the collection by title
+     *
+     * @param title The title of the list
+     */
+    public getByTitle(title: string): List {
+        return new List(this, `getByTitle('${title}')`);
+    }
+
+    /**
      * Adds a new list to the collection
      *
      * @param title The new list's title
@@ -59,7 +53,7 @@ export class Lists extends SharePointQueryableCollection {
      */
     public add(title: string, description = "", template = 100, enableContentTypes = false, additionalSettings: TypedHash<string | number | boolean> = {}): Promise<ListAddResult> {
 
-        const addSettings = Util.extend({
+        const addSettings = extend({
             "AllowContentTypes": enableContentTypes,
             "BaseTemplate": template,
             "ContentTypesEnabled": enableContentTypes,
@@ -68,7 +62,7 @@ export class Lists extends SharePointQueryableCollection {
             "__metadata": { "type": "SP.List" },
         }, additionalSettings);
 
-        return this.postCore({ body: JSON.stringify(addSettings) }).then((data) => {
+        return this.postCore({ body: jsS(addSettings) }).then((data) => {
             return { data: data, list: this.getByTitle(addSettings.Title) };
         });
     }
@@ -90,12 +84,12 @@ export class Lists extends SharePointQueryableCollection {
         additionalSettings: TypedHash<string | number | boolean> = {}): Promise<ListEnsureResult> {
 
         if (this.hasBatch) {
-            throw new NotSupportedInBatchException("The ensure list method");
+            throw Error("The ensure list method is not supported for use in a batch.");
         }
 
         return new Promise((resolve, reject) => {
 
-            const addOrUpdateSettings = Util.extend(additionalSettings, { Title: title, Description: description, ContentTypesEnabled: enableContentTypes }, true);
+            const addOrUpdateSettings = extend(additionalSettings, { Title: title, Description: description, ContentTypesEnabled: enableContentTypes }, true);
 
             const list: List = this.getByTitle(addOrUpdateSettings.Title);
 
@@ -119,7 +113,7 @@ export class Lists extends SharePointQueryableCollection {
      */
     public ensureSiteAssetsLibrary(): Promise<List> {
         return this.clone(Lists, "ensuresiteassetslibrary").postCore().then((json) => {
-            return new List(spExtractODataId(json));
+            return new List(odataUrlFrom(json));
         });
     }
 
@@ -128,11 +122,10 @@ export class Lists extends SharePointQueryableCollection {
      */
     public ensureSitePagesLibrary(): Promise<List> {
         return this.clone(Lists, "ensuresitepageslibrary").postCore().then((json) => {
-            return new List(spExtractODataId(json));
+            return new List(odataUrlFrom(json));
         });
     }
 }
-
 
 /**
  * Describes a single List instance
@@ -260,7 +253,7 @@ export class List extends SharePointQueryableSecurable {
     /* tslint:disable no-string-literal */
     public update(properties: TypedHash<string | number | boolean>, eTag = "*"): Promise<ListUpdateResult> {
 
-        const postBody = JSON.stringify(Util.extend({
+        const postBody = jsS(extend({
             "__metadata": { "type": "SP.List" },
         }, properties));
 
@@ -274,7 +267,7 @@ export class List extends SharePointQueryableSecurable {
 
             let retList: List = this;
 
-            if (properties.hasOwnProperty("Title")) {
+            if (hOP(properties, "Title")) {
                 retList = this.getParent(List, this.parentUrl, `getByTitle('${properties["Title"]}')`);
             }
 
@@ -306,7 +299,7 @@ export class List extends SharePointQueryableSecurable {
     public getChanges(query: ChangeQuery): Promise<any> {
 
         return this.clone(List, "getchanges").postCore({
-            body: JSON.stringify({ "query": Util.extend({ "__metadata": { "type": "SP.ChangeQuery" } }, query) }),
+            body: jsS({ "query": extend(metadata("SP.ChangeQuery"), query) }),
         });
     }
 
@@ -333,7 +326,7 @@ export class List extends SharePointQueryableSecurable {
 
         const q = this.clone(List, "getitems");
         return q.expand.apply(q, expands).postCore({
-            body: JSON.stringify({ "query": Util.extend({ "__metadata": { "type": "SP.CamlQuery" } }, query) }),
+            body: jsS({ "query": extend({ "__metadata": { "type": "SP.CamlQuery" } }, query) }),
         });
     }
 
@@ -343,7 +336,7 @@ export class List extends SharePointQueryableSecurable {
     public getListItemChangesSinceToken(query: ChangeLogitemQuery): Promise<string> {
 
         return this.clone(List, "getlistitemchangessincetoken").postCore({
-            body: JSON.stringify({ "query": Util.extend({ "__metadata": { "type": "SP.ChangeLogItemQuery" } }, query) }),
+            body: jsS({ "query": extend({ "__metadata": { "type": "SP.ChangeLogItemQuery" } }, query) }),
         }, { parse(r) { return r.text(); } });
     }
 
@@ -352,7 +345,7 @@ export class List extends SharePointQueryableSecurable {
      */
     public recycle(): Promise<string> {
         return this.clone(List, "recycle").postCore().then(data => {
-            if (data.hasOwnProperty("Recycle")) {
+            if (hOP(data, "Recycle")) {
                 return data.Recycle;
             } else {
                 return data;
@@ -366,37 +359,35 @@ export class List extends SharePointQueryableSecurable {
     public renderListData(viewXml: string): Promise<RenderListData> {
 
         const q = this.clone(List, "renderlistdata(@viewXml)");
-        q.query.add("@viewXml", `'${viewXml}'`);
+        q.query.set("@viewXml", `'${viewXml}'`);
         return q.postCore().then(data => {
             // data will be a string, so we parse it again
-            data = JSON.parse(data);
-            if (data.hasOwnProperty("RenderListData")) {
-                return data.RenderListData;
-            } else {
-                return data;
-            }
+            return JSON.parse(hOP(data, "RenderListData") ? data.RenderListData : data);
         });
     }
 
     /**
      * Returns the data for the specified query view
-     * 
+     *
      * @param parameters The parameters to be used to render list data as JSON string.
      * @param overrideParameters The parameters that are used to override and extend the regular SPRenderListDataParameters.
+     * @param queryParams Allows setting of query parameters
      */
-    public renderListDataAsStream(parameters: RenderListDataParameters, overrideParameters: any = null): Promise<any> {
+    public renderListDataAsStream(parameters: RenderListDataParameters, overrideParameters: any = null, queryParams = new Map<string, string>()): Promise<any> {
 
         const postBody = {
-            overrideParameters: Util.extend({
-                "__metadata": { "type": "SP.RenderListDataOverrideParameters" },
-            }, overrideParameters),
-            parameters: Util.extend({
-                "__metadata": { "type": "SP.RenderListDataParameters" },
-            }, parameters),
+            overrideParameters: extend(metadata("SP.RenderListDataOverrideParameters"), overrideParameters),
+            parameters: extend(metadata("SP.RenderListDataParameters"), parameters),
         };
 
-        return this.clone(List, "RenderListDataAsStream", true).postCore({
-            body: JSON.stringify(postBody),
+        const clone = this.clone(List, "RenderListDataAsStream", true);
+
+        if (queryParams && queryParams.size > 0) {
+            queryParams.forEach((v, k) => clone.query.set(k, v));
+        }
+
+        return clone.postCore({
+            body: jsS(postBody),
         });
     }
 
@@ -406,12 +397,7 @@ export class List extends SharePointQueryableSecurable {
     public renderListFormData(itemId: number, formId: string, mode: ControlMode): Promise<ListFormData> {
         return this.clone(List, `renderlistformdata(itemid=${itemId}, formid='${formId}', mode='${mode}')`).postCore().then(data => {
             // data will be a string, so we parse it again
-            data = JSON.parse(data);
-            if (data.hasOwnProperty("ListData")) {
-                return data.ListData;
-            } else {
-                return data;
-            }
+            return JSON.parse(hOP(data, "RenderListFormData") ? data.RenderListFormData : data);
         });
     }
 
@@ -420,7 +406,7 @@ export class List extends SharePointQueryableSecurable {
      */
     public reserveListItemId(): Promise<number> {
         return this.clone(List, "reservelistitemid").postCore().then(data => {
-            if (data.hasOwnProperty("ReserveListItemId")) {
+            if (hOP(data, "ReserveListItemId")) {
                 return data.ReserveListItemId;
             } else {
                 return data;
@@ -434,6 +420,50 @@ export class List extends SharePointQueryableSecurable {
      */
     public getListItemEntityTypeFullName(): Promise<string> {
         return this.clone(List, null, false).select("ListItemEntityTypeFullName").get<{ ListItemEntityTypeFullName: string }>().then(o => o.ListItemEntityTypeFullName);
+    }
+
+    /**
+     * Creates an item using path (in a folder), validates and sets its field values.
+     *
+     * @param formValues The fields to change and their new values.
+     * @param decodedUrl Path decoded url; folder's server relative path.
+     * @param bNewDocumentUpdate true if the list item is a document being updated after upload; otherwise false.
+     * @param checkInComment Optional check in comment.
+     */
+    public addValidateUpdateItemUsingPath(
+        formValues: ListItemFormUpdateValue[],
+        decodedUrl: string,
+        bNewDocumentUpdate = false,
+        checkInComment?: string,
+    ): Promise<ListItemFormUpdateValue[]> {
+        return this.clone(List, "AddValidateUpdateItemUsingPath()").postCore({
+            body: jsS({
+                bNewDocumentUpdate,
+                checkInComment,
+                formValues,
+                listItemCreateInfo: {
+                    FolderPath: {
+                        DecodedUrl: decodedUrl,
+                        __metadata: { type: "SP.ResourcePath" },
+                    },
+                    __metadata: { type: "SP.ListItemCreationInformationUsingPath" },
+                },
+            }),
+        }).then(res => {
+            if (typeof res.AddValidateUpdateItemUsingPath !== "undefined") {
+                return res.AddValidateUpdateItemUsingPath.results;
+            }
+            return res;
+        });
+    }
+
+    /**
+    * Gets the site script syntax (JSON) for the current list
+    */
+    public async getSiteScript(): Promise<string> {
+        const rootFolder = await this.clone(List).rootFolder.select("ServerRelativeUrl").get();
+        const absoluteListUrl = await toAbsoluteUrl(rootFolder.ServerRelativeUrl);
+        return new SiteScripts(this, "").getSiteScriptFromList(absoluteListUrl);
     }
 }
 

@@ -1,5 +1,4 @@
-import { Util, HttpClientImpl } from "@pnp/common";
-import { SPRequestExecutorUndefinedException } from "./exceptions";
+import { extend, HttpClientImpl } from "@pnp/common";
 
 /**
  * Makes requests using the SP.RequestExecutor library.
@@ -9,8 +8,8 @@ export class SPRequestExecutorClient implements HttpClientImpl {
      * Fetches a URL using the SP.RequestExecutor library.
      */
     public fetch(url: string, options: any): Promise<Response> {
-        if (typeof SP === "undefined" || typeof SP.RequestExecutor === "undefined") {
-            throw new SPRequestExecutorUndefinedException();
+        if (SP === undefined || SP.RequestExecutor === undefined) {
+            throw Error("SP.RequestExecutor is undefined. Load the SP.RequestExecutor.js library (/_layouts/15/SP.RequestExecutor.js) before loading the PnP JS Core library.");
         }
 
         const addinWebUrl = url.substring(0, url.indexOf("/_api")),
@@ -46,9 +45,9 @@ export class SPRequestExecutorClient implements HttpClientImpl {
             };
 
             if (options.body) {
-                requestOptions = Util.extend(requestOptions, { body: options.body });
+                requestOptions = extend(requestOptions, { body: options.body });
             } else {
-                requestOptions = Util.extend(requestOptions, { binaryStringRequestBody: true });
+                requestOptions = extend(requestOptions, { binaryStringRequestBody: true });
             }
             executor.executeAsync(requestOptions);
         });
@@ -60,7 +59,7 @@ export class SPRequestExecutorClient implements HttpClientImpl {
     private convertToResponse = (spResponse: SP.ResponseInfo): Response => {
         const responseHeaders = new Headers();
 
-        if (typeof spResponse.headers !== "undefined") {
+        if (spResponse.headers !== undefined) {
             for (const h in spResponse.headers) {
                 if (spResponse.headers[h]) {
                     responseHeaders.append(h, spResponse.headers[h]);

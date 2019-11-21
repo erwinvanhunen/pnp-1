@@ -7,8 +7,8 @@ import {
 } from "@pnp/sp";
 
 import {
-    Util,
-    UrlException,
+    isUrlAbsolute,
+    combine,
 } from "@pnp/common";
 
 export class SPRestAddIn extends SPRest {
@@ -47,18 +47,18 @@ export class SPRestAddIn extends SPRest {
         hostWebUrl: string,
         urlPart: string): T {
 
-        if (!Util.isUrlAbsolute(addInWebUrl)) {
-            throw new UrlException("The addInWebUrl parameter must be an absolute url.");
+        if (!isUrlAbsolute(addInWebUrl)) {
+            throw Error("The addInWebUrl parameter must be an absolute url.");
         }
 
-        if (!Util.isUrlAbsolute(hostWebUrl)) {
-            throw new UrlException("The hostWebUrl parameter must be an absolute url.");
+        if (!isUrlAbsolute(hostWebUrl)) {
+            throw Error("The hostWebUrl parameter must be an absolute url.");
         }
 
-        const url = Util.combinePaths(addInWebUrl, "_api/SP.AppContextSite(@target)");
+        const url = combine(addInWebUrl, "_api/SP.AppContextSite(@target)");
 
         const instance = new factory(url, urlPart);
-        instance.query.add("@target", "'" + encodeURIComponent(hostWebUrl) + "'");
+        instance.query.set("@target", "'" + encodeURIComponent(hostWebUrl) + "'");
         return instance.configure(this._options);
     }
 }

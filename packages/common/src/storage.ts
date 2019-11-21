@@ -1,7 +1,5 @@
-import { Util } from "./util";
-import { Dictionary } from "./collections";
+import { dateAdd, getCtxCallback, jsS, objectDefinedNotNull } from "./util";
 import { RuntimeConfig } from "./libconfig";
-import { Logger, LogLevel } from "@pnp/logging";
 
 /**
  * A wrapper class to provide a consistent interface to browser based storage
@@ -24,7 +22,6 @@ export class PnPClientStorageWrapper implements PnPClientStore {
         // if the cache timeout is enabled call the handler
         // this will clear any expired items and set the timeout function
         if (RuntimeConfig.enableCacheExpiration) {
-            Logger.write(`Enabling cache expiration.`, LogLevel.Info);
             this.cacheExpirationHandler();
         }
     }
@@ -42,15 +39,13 @@ export class PnPClientStorageWrapper implements PnPClientStore {
 
         const o = this.store.getItem(key);
 
-        if (o == null) {
+        if (!objectDefinedNotNull(o)) {
             return null;
         }
 
-        const persistable = JSON.parse(o);
+        const persistable = JSON.parse(o!);
 
         if (new Date(persistable.expiration) <= new Date()) {
-
-            Logger.write(`Removing item with key '${key}' from cache due to expiration.`, LogLevel.Info);
             this.delete(key);
             return null;
 
@@ -96,19 +91,16 @@ export class PnPClientStorageWrapper implements PnPClientStore {
             return getter();
         }
 
-        return new Promise((resolve) => {
+        const o = this.get<T>(key);
 
-            const o = this.get<T>(key);
+        if (o === null) {
+            return getter().then((d) => {
+                this.put(key, d, expire);
+                return d;
+            });
+        }
 
-            if (o == null) {
-                getter().then((d) => {
-                    this.put(key, d, expire);
-                    resolve(d);
-                });
-            } else {
-                resolve(o);
-            }
-        });
+        return Promise.resolve(o);
     }
 
     /**
@@ -145,7 +137,7 @@ export class PnPClientStorageWrapper implements PnPClientStore {
      * Used to determine if the wrapped storage is available currently
      */
     private test(): boolean {
-        const str = "test";
+        const str = "t";
         try {
             this.store.setItem(str, str);
             this.store.removeItem(str);
@@ -159,37 +151,29 @@ export class PnPClientStorageWrapper implements PnPClientStore {
      * Creates the persistable to store
      */
     private createPersistable(o: any, expire?: Date): string {
-        if (typeof expire === "undefined") {
+        if (expire === undefined) {
 
             // ensure we are by default inline with the global library setting
             let defaultTimeout = RuntimeConfig.defaultCachingTimeoutSeconds;
             if (this.defaultTimeoutMinutes > 0) {
                 defaultTimeout = this.defaultTimeoutMinutes * 60;
             }
-            expire = Util.dateAdd(new Date(), "second", defaultTimeout);
+            expire = dateAdd(new Date(), "second", defaultTimeout);
         }
 
-        return JSON.stringify({ pnp: 1, expiration: expire, value: o });
+        return jsS({ pnp: 1, expiration: expire, value: o });
     }
 
     /**
      * Deletes expired items added by this library in this.store and sets a timeout to call itself
      */
     private cacheExpirationHandler(): void {
-
-        Logger.write("Called cache expiration handler.", LogLevel.Verbose);
         this.deleteExpired().then(_ => {
 
             // call ourself in the future
-            setTimeout(Util.getCtxCallback(this, this.cacheExpirationHandler), RuntimeConfig.cacheExpirationIntervalMilliseconds);
+            setTimeout(getCtxCallback(this, this.cacheExpirationHandler), RuntimeConfig.cacheExpirationIntervalMilliseconds);
         }).catch(e => {
-
-            // we've got some error - so just stop the loop and report the error
-            Logger.log({
-                data: e,
-                level: LogLevel.Error,
-                message: "Error deleting expired cache entries, see data for details. Timeout not reset.",
-            });
+            console.error(e);
         });
     }
 }
@@ -233,7 +217,7 @@ export interface PnPClientStore {
      * @param getter A function which will upon execution provide the desired value
      * @param expire Optional, if provided the expiration of the item, otherwise the default is used
      */
-    getOrPut(key: string, getter: Function, expire?: Date): any;
+    getOrPut<T>(key: string, getter: () => Promise<T>, expire?: Date): Promise<T>;
 
     /**
      * Removes any expired items placed in the store by the pnp library, leaves other items untouched
@@ -246,10 +230,10 @@ export interface PnPClientStore {
  */
 class MemoryStorage {
 
-    constructor(private _store = new Dictionary<string>()) { }
+    constructor(private _store = new Map<string, any>()) { }
 
     public get length(): number {
-        return this._store.count;
+        return this._store.size;
     }
 
     public clear(): void {
@@ -261,15 +245,15 @@ class MemoryStorage {
     }
 
     public key(index: number): string {
-        return this._store.getKeys()[index];
+        return Array.from(this._store)[index][0];
     }
 
     public removeItem(key: string): void {
-        this._store.remove(key);
+        this._store.delete(key);
     }
 
     public setItem(key: string, data: string): void {
-        this._store.add(key, data);
+        this._store.set(key, data);
     }
 
     [key: string]: any;
@@ -294,7 +278,7 @@ export class PnPClientStorage {
     public get local(): PnPClientStore {
 
         if (this._local === null) {
-            this._local = typeof localStorage !== "undefined" ? new PnPClientStorageWrapper(localStorage) : new PnPClientStorageWrapper(new MemoryStorage());
+            this._local = this.getStore("local");
         }
 
         return this._local;
@@ -306,9 +290,18 @@ export class PnPClientStorage {
     public get session(): PnPClientStore {
 
         if (this._session === null) {
-            this._session = typeof sessionStorage !== "undefined" ? new PnPClientStorageWrapper(sessionStorage) : new PnPClientStorageWrapper(new MemoryStorage());
+            this._session = this.getStore("session");
         }
 
         return this._session;
+    }
+
+    private getStore(name: string): PnPClientStorageWrapper {
+
+        if (name === "local") {
+            return new PnPClientStorageWrapper(typeof (localStorage) === "undefined" ? new MemoryStorage() : localStorage);
+        }
+
+        return new PnPClientStorageWrapper(typeof (sessionStorage) === "undefined" ? new MemoryStorage() : sessionStorage);
     }
 }

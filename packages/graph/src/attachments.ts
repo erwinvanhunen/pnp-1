@@ -1,11 +1,9 @@
-import { GraphQueryable, GraphQueryableInstance, GraphQueryableCollection } from "./graphqueryable";
+import { GraphQueryableInstance, GraphQueryableCollection, defaultPath } from "./graphqueryable";
 import { Attachment as IAttachment } from "@microsoft/microsoft-graph-types";
+import { jsS } from "@pnp/common";
 
-export class Attachments extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "attachments") {
-        super(baseUrl, path);
-    }
+@defaultPath("attachments")
+export class Attachments extends GraphQueryableCollection<IAttachment[]> {
 
     /**
      * Gets a member of the group by id
@@ -25,7 +23,7 @@ export class Attachments extends GraphQueryableCollection {
     public addFile(name: string, bytes: string | Blob): Promise<IAttachment> {
 
         return this.postCore({
-            body: JSON.stringify({
+            body: jsS({
                 "@odata.type": "#microsoft.graph.fileAttachment",
                 contentBytes: bytes,
                 name: name,
@@ -34,5 +32,5 @@ export class Attachments extends GraphQueryableCollection {
     }
 }
 
-export class Attachment extends GraphQueryableInstance {
+export class Attachment extends GraphQueryableInstance<IAttachment> {
 }

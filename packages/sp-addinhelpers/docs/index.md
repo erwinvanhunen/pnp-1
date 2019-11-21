@@ -14,7 +14,7 @@ Now you can make requests to the host web from your add-in using the crossDomain
 
 ```TypeScript
 // note we are getting the sp variable from this library, it extends the sp export from @pnp/sp to add the required helper methods
-import { sp, SPRequestExecutorClient } from "@pnp\sp-addinhelpers";
+import { sp, SPRequestExecutorClient } from "@pnp/sp-addinhelpers";
 
 // this only needs to be done once within your application
 sp.setup({
@@ -39,3 +39,8 @@ sp.crossDomainWeb(addInWenUrl, hostWebUrl).get().then(w => {
 
 * [SPRequestExecutorClient](sp-request-executor-client.md)
 * [SPRestAddIn](sp-rest-addin.md)
+
+## UML
+![Graphical UML diagram](../../documentation/img/pnpjs-sp-addinhelpers-uml.svg)
+
+Graphical UML diagram of @pnp/sp-addinhelpers. Right-click the diagram and open in new tab if it is too small.

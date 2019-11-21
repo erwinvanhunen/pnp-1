@@ -1,12 +1,15 @@
 declare var require: (s: string) => any;
-import * as chai from "chai";
-import "mocha";
-import { Util } from "@pnp/common";
-import { Web, sp } from "@pnp/sp";
+import { getGUID, combine, extend } from "@pnp/common";
 import { graph } from "@pnp/graph";
-import { SPFetchClient, AdalFetchClient } from "@pnp/nodejs";
+import { AdalFetchClient, SPFetchClient } from "@pnp/nodejs";
+import { Web, sp } from "@pnp/sp";
+import * as chai from "chai";
 import * as chaiAsPromised from "chai-as-promised";
+import "mocha";
+
 chai.use(chaiAsPromised);
+
+declare var process: any;
 
 export interface ISettingsTestingPart {
     enableWebTests: boolean;
@@ -31,23 +34,27 @@ export interface ISettings {
 // we need to load up the appropriate settings based on where we are running
 let settings: ISettings = null;
 let mode = "cmd";
-process.argv.forEach(s => {
-    if (/^--pnp-test-mode/.test(s)) {
+let site: string = null;
+let skipWeb = false;
+process.argv.forEach((s: string) => {
+    if (/^--pnp-test-mode/i.test(s)) {
         mode = s.split("=")[1];
     }
+    if (/^--pnp-test-site/i.test(s)) {
+        site = s.split("=")[1];
+    }
+    if (/^--skip-web/i.test(s)) {
+        skipWeb = true;
+    }
 });
-
-
 
 switch (mode) {
 
     case "travis":
 
-        const webTests = process.env.PnPTesting_ClientId && process.env.PnPTesting_ClientSecret && process.env.PnPTesting_SiteUrl;
-
         settings = {
             testing: {
-                enableWebTests: Boolean.parse(webTests).valueOf(),
+                enableWebTests: true,
                 graph: {
                     id: "",
                     secret: "",
@@ -74,7 +81,10 @@ switch (mode) {
         break;
     default:
 
-        settings = require("../../settings");
+        settings = require("../../../settings");
+        if (skipWeb) {
+            settings.testing.enableWebTests = false;
+        }
 
         break;
 }
@@ -82,6 +92,20 @@ switch (mode) {
 function spTestSetup(ts: ISettingsTestingPart): Promise<void> {
 
     return new Promise((resolve, reject) => {
+
+        if (site && site.length > 0) {
+            // we have a site url provided, we'll use that
+            sp.setup({
+                sp: {
+                    fetchClientFactory: () => {
+                        return new SPFetchClient(site, ts.sp.id, ts.sp.secret);
+                    },
+                },
+            });
+
+            ts.sp.webUrl = site;
+            return resolve();
+        }
 
         sp.setup({
             sp: {
@@ -93,11 +117,11 @@ function spTestSetup(ts: ISettingsTestingPart): Promise<void> {
 
         // create the web in which we will test
         const d = new Date();
-        const g = Util.getGUID();
+        const g = getGUID();
 
         sp.web.webs.add(`PnP-JS-Core Testing ${d.toDateString()}`, g).then(() => {
 
-            const url = Util.combinePaths(ts.sp.url, g);
+            const url = combine(ts.sp.url, g);
 
             // set the testing web url so our tests have access if needed
             ts.sp.webUrl = url;
@@ -117,13 +141,13 @@ function spTestSetup(ts: ISettingsTestingPart): Promise<void> {
 
             resolve();
 
-        }).catch(reject);
+        }).catch(e => reject(e));
     });
 }
 
 function graphTestSetup(ts: ISettingsTestingPart): Promise<void> {
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
 
         graph.setup({
             graph: {
@@ -137,7 +161,7 @@ function graphTestSetup(ts: ISettingsTestingPart): Promise<void> {
     });
 }
 
-export let testSettings: ISettingsTestingPart = Util.extend(settings.testing, { webUrl: "" });
+export let testSettings: ISettingsTestingPart = extend(settings.testing, { webUrl: "" });
 
 before(function (done: MochaDone) {
 
@@ -157,6 +181,8 @@ before(function (done: MochaDone) {
             console.log("Error creating testing sub-site: " + JSON.stringify(e));
             done(e);
         });
+    } else {
+        done();
     }
 });
 

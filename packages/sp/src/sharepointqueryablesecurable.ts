@@ -1,6 +1,7 @@
 import { RoleAssignments } from "./roles";
 import { BasePermissions, PermissionKind } from "./types";
 import { SharePointQueryable, SharePointQueryableInstance } from "./sharepointqueryable";
+import { hOP } from "@pnp/common";
 
 export class SharePointQueryableSecurable extends SharePointQueryableInstance {
 
@@ -27,10 +28,10 @@ export class SharePointQueryableSecurable extends SharePointQueryableInstance {
      */
     public getUserEffectivePermissions(loginName: string): Promise<BasePermissions> {
         const q = this.clone(SharePointQueryable, "getUserEffectivePermissions(@user)");
-        q.query.add("@user", `'${encodeURIComponent(loginName)}'`);
-        return q.get().then(r => {
+        q.query.set("@user", `'${encodeURIComponent(loginName)}'`);
+        return q.get<any>().then(r => {
             // handle verbose mode
-            return r.hasOwnProperty("GetUserEffectivePermissions") ? r.GetUserEffectivePermissions : r;
+            return hOP(r, "GetUserEffectivePermissions") ? r.GetUserEffectivePermissions : r;
         });
     }
 
@@ -38,12 +39,10 @@ export class SharePointQueryableSecurable extends SharePointQueryableInstance {
      * Gets the effective permissions for the current user
      */
     public getCurrentUserEffectivePermissions(): Promise<BasePermissions> {
-
-        // remove need to reference Web here, which created a circular build issue
-        const w = new SharePointQueryableInstance("_api/web", "currentuser");
-        return w.select("LoginName").get<{ LoginName: string }>().then(user => {
-
-            return this.getUserEffectivePermissions(user.LoginName);
+        const q = this.clone(SharePointQueryable, "EffectiveBasePermissions");
+        return q.get<any>().then(r => {
+            // handle verbose mode
+            return hOP(r, "EffectiveBasePermissions") ? r.EffectiveBasePermissions : r;
         });
     }
 

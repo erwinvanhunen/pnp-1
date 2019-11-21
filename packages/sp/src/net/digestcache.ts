@@ -1,5 +1,5 @@
 import { SPHttpClient } from "./sphttpclient";
-import { Util, Dictionary } from "@pnp/common";
+import { combine, extend } from "@pnp/common";
 import { ODataDefaultParser } from "@pnp/odata";
 import { SPRuntimeConfig } from "../config/splibconfig";
 
@@ -9,23 +9,23 @@ export class CachedDigest {
 }
 
 // allows for the caching of digests across all HttpClient's which each have their own DigestCache wrapper.
-const digests = new Dictionary<CachedDigest>();
+const digests = new Map<string, CachedDigest>();
 
 export class DigestCache {
 
-    constructor(private _httpClient: SPHttpClient, private _digests: Dictionary<CachedDigest> = digests) { }
+    constructor(private _httpClient: SPHttpClient, private _digests: Map<string, CachedDigest> = digests) { }
 
     public getDigest(webUrl: string): Promise<string> {
 
         const cachedDigest: CachedDigest = this._digests.get(webUrl);
-        if (cachedDigest !== null) {
+        if (cachedDigest !== undefined) {
             const now = new Date();
             if (now < cachedDigest.expiration) {
                 return Promise.resolve(cachedDigest.value);
             }
         }
 
-        const url = Util.combinePaths(webUrl, "/_api/contextinfo");
+        const url = combine(webUrl, "/_api/contextinfo");
 
         const headers = {
             "Accept": "application/json;odata=verbose",
@@ -35,7 +35,7 @@ export class DigestCache {
         return this._httpClient.fetchRaw(url, {
             cache: "no-cache",
             credentials: "same-origin",
-            headers: Util.extend(headers, SPRuntimeConfig.headers, true),
+            headers: extend(headers, SPRuntimeConfig.headers, true),
             method: "POST",
         }).then((response) => {
             const parser = new ODataDefaultParser();
@@ -47,7 +47,7 @@ export class DigestCache {
             const expiration = new Date();
             expiration.setTime(expiration.getTime() + 1000 * seconds);
             newCachedDigest.expiration = expiration;
-            this._digests.add(webUrl, newCachedDigest);
+            this._digests.set(webUrl, newCachedDigest);
             return newCachedDigest.value;
         });
     }
@@ -56,4 +56,3 @@ export class DigestCache {
         this._digests.clear();
     }
 }
-

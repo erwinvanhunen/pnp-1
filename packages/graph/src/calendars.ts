@@ -1,27 +1,20 @@
-import { GraphQueryable, GraphQueryableInstance, GraphQueryableCollection } from "./graphqueryable";
-import { TypedHash } from "@pnp/common";
-import { Event as IEvent } from "@microsoft/microsoft-graph-types";
+import { GraphQueryableInstance, GraphQueryableCollection, defaultPath } from "./graphqueryable";
+import { TypedHash, jsS } from "@pnp/common";
+import { Event as IEvent, Calendar as ICalendar } from "@microsoft/microsoft-graph-types";
 // import { Attachments } from "./attachments";
 
-export class Calendars extends GraphQueryableCollection {
+@defaultPath("calendars")
+export class Calendars extends GraphQueryableCollection<ICalendar[]> {}
 
-    constructor(baseUrl: string | GraphQueryable, path = "calendars") {
-        super(baseUrl, path);
-    }
-}
-
-export class Calendar extends GraphQueryableInstance {
+export class Calendar extends GraphQueryableInstance<ICalendar> {
 
     public get events(): Events {
         return new Events(this);
     }
 }
 
-export class Events extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "events") {
-        super(baseUrl, path);
-    }
+@defaultPath("events")
+export class Events extends GraphQueryableCollection<IEvent[]> {
 
     public getById(id: string): Event {
         return new Event(this, id);
@@ -35,7 +28,7 @@ export class Events extends GraphQueryableCollection {
     public add(properties: Event): Promise<EventAddResult> {
 
         return this.postCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         }).then(r => {
             return {
                 data: r,
@@ -50,7 +43,7 @@ export interface EventAddResult {
     event: Event;
 }
 
-export class Event extends GraphQueryableInstance {
+export class Event extends GraphQueryableInstance<IEvent> {
 
     // TODO:: when supported
     // /**
@@ -68,7 +61,7 @@ export class Event extends GraphQueryableInstance {
     public update(properties: TypedHash<any>): Promise<void> {
 
         return this.patchCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         });
     }
 
@@ -79,4 +72,3 @@ export class Event extends GraphQueryableInstance {
         return this.deleteCore();
     }
 }
-

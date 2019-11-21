@@ -1,9 +1,11 @@
-import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection } from "./sharepointqueryable";
-import { HashTagCollection, UserProfile } from "./types";
-import { readBlobAsArrayBuffer } from "@pnp/common";
+import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection, defaultPath } from "./sharepointqueryable";
+import { ClientPeoplePickerQueryParameters, HashTagCollection, PeoplePickerEntity, UserProfile } from "./types";
+import { extend, jsS } from "@pnp/common";
+import { metadata } from "./utils/metadata";
 
 export class UserProfileQuery extends SharePointQueryableInstance {
 
+    private clientPeoplePickerQuery: ClientPeoplePickerQuery;
     private profileLoader: ProfileLoader;
 
     /**
@@ -14,7 +16,8 @@ export class UserProfileQuery extends SharePointQueryableInstance {
     constructor(baseUrl: string | SharePointQueryable, path = "_api/sp.userprofiles.peoplemanager") {
         super(baseUrl, path);
 
-        this.profileLoader = new ProfileLoader(baseUrl);
+        this.clientPeoplePickerQuery = (new ClientPeoplePickerQuery(baseUrl)).configureFrom(this);
+        this.profileLoader = (new ProfileLoader(baseUrl)).configureFrom(this);
     }
 
     /**
@@ -38,7 +41,7 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      */
     public amIFollowedBy(loginName: string): Promise<boolean> {
         const q = this.clone(UserProfileQuery, "amifollowedby(@v)");
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.get();
     }
 
@@ -49,7 +52,7 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      */
     public amIFollowing(loginName: string): Promise<boolean> {
         const q = this.clone(UserProfileQuery, "amifollowing(@v)");
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.get();
     }
 
@@ -69,7 +72,7 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      */
     public getFollowersFor(loginName: string): Promise<any[]> {
         const q = this.clone(UserProfileQuery, "getfollowersfor(@v)");
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.get();
     }
 
@@ -96,7 +99,7 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      */
     public getPeopleFollowedBy(loginName: string): Promise<any[]> {
         const q = this.clone(UserProfileQuery, "getpeoplefollowedby(@v)");
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.get();
     }
 
@@ -105,9 +108,9 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      *
      * @param loginName The account name of the user.
      */
-    public getPropertiesFor(loginName: string): Promise<any[]> {
+    public getPropertiesFor(loginName: string): Promise<any> {
         const q = this.clone(UserProfileQuery, "getpropertiesfor(@v)");
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.get();
     }
 
@@ -129,7 +132,7 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      */
     public getUserProfilePropertyFor(loginName: string, propertyName: string): Promise<string> {
         const q = this.clone(UserProfileQuery, `getuserprofilepropertyfor(accountname=@v, propertyname='${propertyName}')`);
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.get();
     }
 
@@ -140,7 +143,7 @@ export class UserProfileQuery extends SharePointQueryableInstance {
      */
     public hideSuggestion(loginName: string): Promise<void> {
         const q = this.clone(UserProfileQuery, "hidesuggestion(@v)");
-        q.query.add("@v", `'${encodeURIComponent(loginName)}'`);
+        q.query.set("@v", `'${encodeURIComponent(loginName)}'`);
         return q.postCore();
     }
 
@@ -153,8 +156,8 @@ export class UserProfileQuery extends SharePointQueryableInstance {
     public isFollowing(follower: string, followee: string): Promise<boolean> {
         const q = this.clone(UserProfileQuery, null);
         q.concat(`.isfollowing(possiblefolloweraccountname=@v, possiblefolloweeaccountname=@y)`);
-        q.query.add("@v", `'${encodeURIComponent(follower)}'`);
-        q.query.add("@y", `'${encodeURIComponent(followee)}'`);
+        q.query.set("@v", `'${encodeURIComponent(follower)}'`);
+        q.query.set("@y", `'${encodeURIComponent(followee)}'`);
         return q.get();
     }
 
@@ -166,13 +169,53 @@ export class UserProfileQuery extends SharePointQueryableInstance {
     public setMyProfilePic(profilePicSource: Blob): Promise<void> {
 
         return new Promise<void>((resolve, reject) => {
-            readBlobAsArrayBuffer(profilePicSource).then((buffer) => {
-                const request = new UserProfileQuery(this, "setmyprofilepicture");
-                request.postCore({
-                    body: String.fromCharCode.apply(null, new Uint16Array(buffer)),
-                }).then(_ => resolve());
-            }).catch(e => reject(e));
+
+            let buffer: any = null;
+            const reader = new FileReader();
+            reader.onload = (e: any) => buffer = e.target.result;
+            reader.readAsArrayBuffer(profilePicSource);
+            const request = new UserProfileQuery(this, "setmyprofilepicture");
+            request.postCore({
+                body: String.fromCharCode.apply(null, <any>new Uint16Array(buffer)),
+            }).then(_ => resolve()).catch(e => reject(e));
+
         });
+    }
+
+    /**
+     * Sets single value User Profile property
+     *
+     * @param accountName The account name of the user
+     * @param propertyName Property name
+     * @param propertyValue Property value
+     */
+    public setSingleValueProfileProperty(accountName: string, propertyName: string, propertyValue: string): Promise<void> {
+        const postBody: string = jsS({
+            accountName: accountName,
+            propertyName: propertyName,
+            propertyValue: propertyValue,
+        });
+
+        return this.clone(UserProfileQuery, "SetSingleValueProfileProperty")
+            .postCore({ body: postBody });
+    }
+
+    /**
+     * Sets multi valued User Profile property
+     *
+     * @param accountName The account name of the user
+     * @param propertyName Property name
+     * @param propertyValues Property values
+     */
+    public setMultiValuedProfileProperty(accountName: string, propertyName: string, propertyValues: string[]): Promise<void> {
+        const postBody: string = jsS({
+            accountName: accountName,
+            propertyName: propertyName,
+            propertyValues: propertyValues,
+        });
+
+        return this.clone(UserProfileQuery, "SetMultiValuedProfileProperty")
+            .postCore({ body: postBody });
     }
 
     /**
@@ -216,18 +259,28 @@ export class UserProfileQuery extends SharePointQueryableInstance {
     public shareAllSocialData(share: boolean): Promise<void> {
         return this.profileLoader.shareAllSocialData(share);
     }
+
+    /**
+     * Resolves user or group using specified query parameters
+     *
+     * @param queryParams The query parameters used to perform resolve
+     */
+    public clientPeoplePickerResolveUser(queryParams: ClientPeoplePickerQueryParameters): Promise<PeoplePickerEntity> {
+        return this.clientPeoplePickerQuery.clientPeoplePickerResolveUser(queryParams);
+    }
+
+    /**
+     * Searches for users or groups using specified query parameters
+     *
+     * @param queryParams The query parameters used to perform search
+     */
+    public clientPeoplePickerSearchUser(queryParams: ClientPeoplePickerQueryParameters): Promise<PeoplePickerEntity[]> {
+        return this.clientPeoplePickerQuery.clientPeoplePickerSearchUser(queryParams);
+    }
 }
 
+@defaultPath("_api/sp.userprofiles.profileloader.getprofileloader")
 class ProfileLoader extends SharePointQueryable {
-
-      /**
-     * Creates a new instance of the ProfileLoader class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this profile loader
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "_api/sp.userprofiles.profileloader.getprofileloader") {
-        super(baseUrl, path);
-    }
 
     /**
      * Provisions one or more users' personal sites. (My Site administrator on SharePoint Online only) Doesn't support batching
@@ -237,7 +290,7 @@ class ProfileLoader extends SharePointQueryable {
     public createPersonalSiteEnqueueBulk(emails: string[]): Promise<void> {
 
         return this.clone(ProfileLoader, "createpersonalsiteenqueuebulk", false).postCore({
-            body: JSON.stringify({ "emailIDs": emails }),
+            body: jsS({ "emailIDs": emails }),
         });
     }
 
@@ -279,5 +332,61 @@ class ProfileLoader extends SharePointQueryable {
      */
     public shareAllSocialData(share: boolean): Promise<void> {
         return this.clone(ProfileLoader, `getuserprofile/shareallsocialdata(${share})`).postCore();
+    }
+}
+
+@defaultPath("_api/sp.ui.applicationpages.clientpeoplepickerwebserviceinterface")
+class ClientPeoplePickerQuery extends SharePointQueryable {
+
+    /**
+     * Resolves user or group using specified query parameters
+     *
+     * @param queryParams The query parameters used to perform resolve
+     */
+    public clientPeoplePickerResolveUser(queryParams: ClientPeoplePickerQueryParameters): Promise<PeoplePickerEntity> {
+        const q = this.clone(ClientPeoplePickerQuery, null);
+        q.concat(".clientpeoplepickerresolveuser");
+        return q.postCore<string | { ClientPeoplePickerResolveUser: string }>({
+            body: this.createClientPeoplePickerQueryParametersRequestBody(queryParams),
+        })
+            .then(res => {
+                if (typeof res === "object") {
+                    return res.ClientPeoplePickerResolveUser;
+                }
+                return res;
+            })
+            .then(JSON.parse);
+    }
+
+    /**
+     * Searches for users or groups using specified query parameters
+     *
+     * @param queryParams The query parameters used to perform search
+     */
+    public clientPeoplePickerSearchUser(queryParams: ClientPeoplePickerQueryParameters): Promise<PeoplePickerEntity[]> {
+        const q = this.clone(ClientPeoplePickerQuery, null);
+        q.concat(".clientpeoplepickersearchuser");
+        return q.postCore<string | { ClientPeoplePickerSearchUser: string }>({
+            body: this.createClientPeoplePickerQueryParametersRequestBody(queryParams),
+        })
+            .then(res => {
+                if (typeof res === "object") {
+                    return res.ClientPeoplePickerSearchUser;
+                }
+                return res;
+            })
+            .then(JSON.parse);
+    }
+
+    /**
+     * Creates ClientPeoplePickerQueryParameters request body
+     *
+     * @param queryParams The query parameters to create request body
+     */
+    private createClientPeoplePickerQueryParametersRequestBody(queryParams: ClientPeoplePickerQueryParameters): string {
+        return jsS({
+            "queryParams":
+                extend(metadata("SP.UI.ApplicationPages.ClientPeoplePickerQueryParameters"), queryParams),
+        });
     }
 }

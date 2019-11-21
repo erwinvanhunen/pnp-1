@@ -1,25 +1,17 @@
-import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection } from "./sharepointqueryable";
-import { Util, TypedHash } from "@pnp/common";
+import { SharePointQueryableInstance, SharePointQueryableCollection, defaultPath } from "./sharepointqueryable";
+import { extend, TypedHash, jsS } from "@pnp/common";
 
 /**
  * Describes a collection of user custom actions
  *
  */
+@defaultPath("usercustomactions")
 export class UserCustomActions extends SharePointQueryableCollection {
 
-    /**
-     * Creates a new instance of the UserCustomActions class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this user custom actions collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "usercustomactions") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Returns the user custom action with the specified id
-     *
-     * @param id The GUID id of the user custom action to retrieve
+    /**	   
+     * Returns the user custom action with the specified id	     
+     *	    
+     * @param id The GUID id of the user custom action to retrieve	     
      */
     public getById(id: string): UserCustomAction {
         const uca = new UserCustomAction(this);
@@ -33,9 +25,9 @@ export class UserCustomActions extends SharePointQueryableCollection {
      * @param properties The information object of property names and values which define the new user custom action
      *
      */
-    public add(properties: TypedHash<string | boolean | number>): Promise<UserCustomActionAddResult> {
+    public add(properties: TypedHash<any>): Promise<UserCustomActionAddResult> {
 
-        const postBody = JSON.stringify(Util.extend({ __metadata: { "type": "SP.UserCustomAction" } }, properties));
+        const postBody = jsS(extend({ __metadata: { "type": "SP.UserCustomAction" } }, properties));
 
         return this.postCore({ body: postBody }).then((data) => {
             return {
@@ -65,24 +57,7 @@ export class UserCustomAction extends SharePointQueryableInstance {
     *
     * @param properties An information object of property names and values to update for this user custom action
     */
-    public update(properties: TypedHash<string | boolean | number>): Promise<UserCustomActionUpdateResult> {
-
-        const postBody = JSON.stringify(Util.extend({
-            "__metadata": { "type": "SP.UserCustomAction" },
-        }, properties));
-
-        return this.postCore({
-            body: postBody,
-            headers: {
-                "X-HTTP-Method": "MERGE",
-            },
-        }).then((data) => {
-            return {
-                action: this,
-                data: data,
-            };
-        });
-    }
+    public update = this._update<UserCustomActionUpdateResult, TypedHash<any>>("SP.UserCustomAction", (data) => ({ data, action: this }));
 
     /**
     * Removes this user custom action

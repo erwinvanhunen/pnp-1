@@ -1,4 +1,4 @@
-import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection } from "./sharepointqueryable";
+import { SharePointQueryableInstance, SharePointQueryableCollection, defaultPath } from "./sharepointqueryable";
 import { TextParser, BlobParser, JSONParser, BufferParser, ODataParser } from "@pnp/odata";
 
 export interface AttachmentFileInfo {
@@ -10,16 +10,8 @@ export interface AttachmentFileInfo {
  * Describes a collection of Item objects
  *
  */
+@defaultPath("AttachmentFiles")
 export class AttachmentFiles extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the AttachmentFiles class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this attachments collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "AttachmentFiles") {
-        super(baseUrl, path);
-    }
 
     /**
      * Gets a Attachment File by filename
@@ -52,7 +44,7 @@ export class AttachmentFiles extends SharePointQueryableCollection {
     /**
      * Adds multiple new attachment to the collection. Not supported for batching.
      *
-     * @files name The collection of files to add
+     * @param files The collection of files to add
      */
     public addMultiple(files: AttachmentFileInfo[]): Promise<void> {
 
@@ -65,10 +57,19 @@ export class AttachmentFiles extends SharePointQueryableCollection {
     /**
      * Delete multiple attachments from the collection. Not supported for batching.
      *
-     * @files name The collection of files to delete
+     * @param files The collection of files to delete
      */
     public deleteMultiple(...files: string[]): Promise<void> {
         return files.reduce((chain, file) => chain.then(() => this.getByName(file).delete()), Promise.resolve());
+    }
+
+    /**
+     * Delete multiple attachments from the collection and send to recycle bin. Not supported for batching.
+     *
+     * @param files The collection of files to be deleted and sent to recycle bin
+     */
+    public recycleMultiple(...files: string[]): Promise<void> {
+        return files.reduce((chain, file) => chain.then(() => this.getByName(file).recycle()), Promise.resolve());
     }
 }
 
@@ -77,6 +78,8 @@ export class AttachmentFiles extends SharePointQueryableCollection {
  *
  */
 export class AttachmentFile extends SharePointQueryableInstance {
+
+    public delete = this._deleteWithETag;
 
     /**
      * Gets the contents of the file as text
@@ -124,18 +127,32 @@ export class AttachmentFile extends SharePointQueryableInstance {
     }
 
     /**
-     * Delete this attachment file
+     * Delete this attachment file and send it to recycle bin
      *
      * @param eTag Value used in the IF-Match header, by default "*"
      */
-    public delete(eTag = "*"): Promise<void> {
-        return this.postCore({
+    public recycle(eTag = "*"): Promise<void> {
+        return this.clone(AttachmentFile, "recycleObject").postCore({
             headers: {
                 "IF-Match": eTag,
                 "X-HTTP-Method": "DELETE",
             },
         });
     }
+
+    // /**
+    //  * Delete this attachment file
+    //  *
+    //  * @param eTag Value used in the IF-Match header, by default "*"
+    //  */
+    // public delete(eTag = "*"): Promise<void> {
+    //     return this.postCore({
+    //         headers: {
+    //             "IF-Match": eTag,
+    //             "X-HTTP-Method": "DELETE",
+    //         },
+    //     });
+    // }
 
     private getParsed<T>(parser: ODataParser<T>): Promise<T> {
         return this.clone(AttachmentFile, "$value", false).get(parser);

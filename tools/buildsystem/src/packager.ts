@@ -1,9 +1,8 @@
 declare var require: (s: string) => any;
-const path = require("path");
-import { PackageContext } from "./tasks/package/context";
-import { PackageSchema } from "./tasks/package/schema";
-// you have to use require due to breaking changes within chalk
-const util = require("gulp-util");
+const colors = require("ansi-colors");
+const log = require("fancy-log");
+
+import { PackageSchema, PackageTask } from "./tasks/package/schema";
 
 /**
  * Engine function to process build files
@@ -12,50 +11,42 @@ const util = require("gulp-util");
  * @param config The build configuration object
  * @param callback (err?) => void
  */
-export function packager(config: PackageSchema): Promise<void> {
+export async function packager(version: string, config: PackageSchema): Promise<void> {
 
-    // it matters what order we build things as dependencies must be built first
-    // these are the folder names witin the packages directory to build
-    return config.packages.reduce((pipe: Promise<void>, pkg) => {
+    try {
 
-        if (typeof pkg === "string") {
-            pkg = { name: pkg };
+        // run any pre-package tasks
+        await runTasks("pre-package", version, config.prePackageTasks || [], config);
+
+        // run any package tasks
+        await runTasks("package", version, config.packageTasks || [], config);
+
+        // run any post-package tasks
+        await runTasks("post-package", version, config.postPackageTasks || [], config);
+
+    } catch (e) {
+
+        log(`${colors.bgRed(" ")} ${colors.bold(colors.red(`Packaging error`))}.`);
+        log(`${colors.bgRed(" ")} ${colors.bold(colors.red("Error:"))} ${colors.bold(colors.white(typeof e === "string" ? e : JSON.stringify(e)))}`);
+        throw e;
+    }
+}
+
+async function runTasks(name: string, version: string, tasks: PackageTask[], config: PackageSchema): Promise<void> {
+
+    log(`${colors.bgBlue(" ")} Beginning (${tasks.length}) ${name} tasks.`);
+    for (let i = 0; i < tasks.length; i++) {
+
+        const task = tasks[i];
+        if (typeof task === "undefined" || task === null) {
+            continue;
         }
 
-        // gate the package names so folks don't try and run code down the line
-        if (!/^[\w-]+$/i.test(pkg.name)) {
-            throw new Error(`Bad package name "${pkg.name}".`);
+        if (typeof task === "function") {
+            await task(version, config);
+        } else {
+            await task.task(version, config, task.packages);
         }
-
-        const projectFolder = path.join(config.packageRoot, pkg.name);
-        const packageFile = path.join(projectFolder, "package.json");
-        const pkgObj = require(packageFile);
-
-        // establish the context that will be passed through all the package pipeline functions
-        const packageContext: PackageContext = {
-            assets: pkg.assets || config.assets,
-            mainFile: pkgObj.main,
-            name: pkg.name,
-            pkgObj: pkgObj,
-            projectFolder: projectFolder,
-            targetFolder: path.join(config.outDir, pkg.name),
-        };
-
-        // select the correct build pipeline
-        const activePackagePipeline = pkg.packagePipeline || config.packagePipeline;
-
-        // log we have added the file
-        util.log(`${util.colors.bgBlue(" ")} Adding ${util.colors.cyan(packageFile)} to the packaging pipeline.`);
-
-        return activePackagePipeline.reduce((subPipe, func) => subPipe.then(() => func(packageContext)), pipe).then(_ => {
-
-            util.log(`${util.colors.bgGreen(" ")} Packaged ${util.colors.cyan(packageFile)}.`);
-
-        }).catch(e => {
-
-            util.log(`${util.colors.bgRed(" ")} ${util.colors.bold.red(`Error packaging `)} ${util.colors.cyan.bold(packageFile)}.`);
-            util.log(`${util.colors.bgRed(" ")} ${util.colors.bold.red("Error:")} ${util.colors.bold.white(typeof e === "string" ? e : JSON.stringify(e))}`);
-        });
-
-    }, Promise.resolve());
+    }
+    log(`${colors.bgGreen(" ")} Finished ${name} tasks.`);
 }

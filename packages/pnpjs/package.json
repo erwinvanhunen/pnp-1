@@ -12,18 +12,18 @@
     "@pnp/graph": "0.0.0-PLACEHOLDER",
     "@pnp/config-store": "0.0.0-PLACEHOLDER",
     "@pnp/sp-addinhelpers": "0.0.0-PLACEHOLDER",
-    "tslib": "1.8.1"
+    "tslib": "1.10.0"
   },
   "author": {
     "name": "Microsoft and other contributors"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnp/pnp/issues"
+    "url": "https://github.com/pnp/pnpjs/issues"
   },
-  "homepage": "https://github.com/pnp/pnp",
+  "homepage": "https://github.com/pnp/pnpjs",
   "repository": {
     "type": "git",
-    "url": "git://github.com/pnp/pnp"
+    "url": "git:github.com/pnp/pnpjs"
   }
 }

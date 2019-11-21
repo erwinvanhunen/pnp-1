@@ -8,35 +8,40 @@
 const gulp = require("gulp"),
     del = require("del"),
     yargs = require("yargs").argv,
-    gutil = require("gulp-util");
+    log = require("fancy-log"),
+    colors = require("ansi-colors");
 
 gulp.task('clean', (done) => {
 
     if (yargs.noclean || yargs.nc) {
-        gutil.log(`${gutil.colors.bgWhite(" ")} Skipping clean due to flag.`);
+        log(`${colors.bgWhite(" ")} Skipping clean due to flag.`);
         return done();
     }
 
     const directories = [
-        "./build",
         "./dist",
-        "./debugging",
         "./serve",
-        "./testing"
+        "./site",
     ];
 
-    gutil.log(`${gutil.colors.bgBlue(" ")} Cleaning directories: ${directories.join(", ")}.`);
+    log(`${colors.bgBlue(" ")} Cleaning directories: ${directories.join(", ")}.`);
     del(directories).then(() => {
-        gutil.log(`${gutil.colors.bgGreen(" ")} Cleaned directories: ${directories.join(", ")}.`);
+        log(`${colors.bgGreen(" ")} Cleaned directories: ${directories.join(", ")}.`);
         done();
     }).catch(e => {
-        gutil.log(`${gutil.colors.bgRed(" ")} Error cleaned directories: ${directories.join(", ")}.`);
+        log(`${colors.bgRed(" ")} Error cleaning directories: ${directories.join(", ")}.`);
         done(e);
     });
 });
 
-gulp.task("clean-docs", (done) => {
-    del("./docs").then(() => {
+gulp.task("clean-build", (done) => {
+    del("./build").then(() => {
+        done();
+    });
+});
+
+gulp.task("clean-build-debugging", (done) => {
+    del("./build/debugging").then(() => {
         done();
     });
 });

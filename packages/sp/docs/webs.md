@@ -7,9 +7,9 @@ Webs are one of the fundamental entry points when working with SharePoint. Webs 
 Using the library you can add a web to another web's collection of subwebs. The basic usage requires only a title and url. This will result in a team site with all of the default settings.
 
 ```TypeScript
-import pnp, { WebAddResult } from "@pnp/sp";
+import { sp, WebAddResult } from "@pnp/sp";
 
-pnp.sp.web.webs.add("title", "subweb1").then((w: WebAddResult) => {
+sp.web.webs.add("title", "subweb1").then((w: WebAddResult) => {
 
     // show the response from the server when adding the web
     console.log(w.data);
@@ -24,10 +24,10 @@ pnp.sp.web.webs.add("title", "subweb1").then((w: WebAddResult) => {
 You can also provide other settings such as description, template, language, and inherit permissions.
 
 ```TypeScript
-import pnp, { WebAddResult } from "@pnp/sp";
+import { sp, WebAddResult } from "@pnp/sp";
 
 // create a German language wiki site with title, url, description, which inherits permissions
-pnp.sp.web.webs.add("wiki", "subweb2", "a wiki web", "WIKI#0", 1031, true).then((w: WebAddResult) => {
+sp.web.webs.add("wiki", "subweb2", "a wiki web", "WIKI#0", 1031, true).then((w: WebAddResult) => {
 
     // show the response from the server when adding the web
     console.log(w.data);
@@ -40,25 +40,41 @@ pnp.sp.web.webs.add("wiki", "subweb2", "a wiki web", "WIKI#0", 1031, true).then(
 });
 ```
 
+## Create Default Associated Groups
+
+If you create a web that doesn't inherit permissions from the parent web, you can create its default associated groups (Members, Owners, Visitors) with the default role assigments (Contribute, Full Control, Read)
+
+```TypeScript
+import { sp, WebAddResult } from "@pnp/sp";
+
+sp.web.webs.add("title", "subweb1", "a wiki web", "WIKI#0", 1031, false).then((w: WebAddResult) => {
+
+    w.web.createDefaultAssociatedGroups().then(() => {
+
+        // ...
+    });
+});
+```
+
 ## Get A Web's properties
 
 ```TypeScript
-import pnp from "@pnp/sp";
+import { sp } from "@pnp/sp";
 
 // basic get of the webs properties
-pnp.sp.web.get().then(w => {
+sp.web.get().then(w => {
 
     console.log(w.Title);
 });
 
 // use odata operators to get specific fields
-pnp.sp.web.select("Title").get().then(w => {
+sp.web.select("Title").get().then(w => {
 
     console.log(w.Title);
 });
 
-// use with a simple getAs to give the result a type
-pnp.sp.web.select("Title").getAs<{ Title: string }>().then(w => {
+// use with get to give the result a type
+sp.web.select("Title").get<{ Title: string }>().then(w => {
 
     console.log(w.Title);
 });
@@ -69,9 +85,9 @@ pnp.sp.web.select("Title").getAs<{ Title: string }>().then(w => {
 Some properties, such as AllProperties, are not returned by default. You can still access them using the expand operator.
 
 ```TypeScript
-import pnp from "@pnp/sp";
+import { sp } from "@pnp/sp";
 
-pnp.sp.web.select("AllProperties").expand("AllProperties").get().then(w => {
+sp.web.select("AllProperties").expand("AllProperties").get().then(w => {
 
     console.log(w.AllProperties);
 });
@@ -97,7 +113,7 @@ web.get().then(w => {
 Because this method is a POST request you can chain off it directly. You will get back the full web properties in the data property of the return object. You can also chain directly off the returned Web instance on the web property.
 
 ```TypeScript
-pnp.sp.site.openWebById("111ca453-90f5-482e-a381-cee1ff383c9e").then(w => {
+sp.site.openWebById("111ca453-90f5-482e-a381-cee1ff383c9e").then(w => {
 
     //we got all the data from the web as well
     console.log(w.data);

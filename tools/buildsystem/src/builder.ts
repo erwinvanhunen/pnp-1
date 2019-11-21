@@ -1,9 +1,10 @@
 declare var require: (s: string) => any;
-const path = require("path");
-import { BuildContext } from "./tasks/build/context";
-import { BuildSchema } from "./tasks/build/schema";
-// you have to use require due to breaking changes within chalk
-const util = require("gulp-util");
+const path = require("path"),
+    colors = require("ansi-colors"),
+    log = require("fancy-log");
+
+import { BuildSchema, BuildTask } from "./tasks/build/schema";
+import { build } from "./tasks/build/build";
 
 /**
  * Engine function to process build files
@@ -12,52 +13,45 @@ const util = require("gulp-util");
  * @param config The build configuration object
  * @param callback (err?) => void
  */
-export function builder(version: string, config: BuildSchema): Promise<void> {
+export async function builder(version: string, config: BuildSchema): Promise<void> {
 
-    // it matters what order we build things as dependencies must be built first
-    // these are the folder names witin the packages directory to build
-    return config.packages.reduce((pipe: Promise<void>, pkg) => {
+    try {
 
-        if (typeof pkg === "string") {
-            pkg = { name: pkg };
+        // run any pre-build tasks
+        await runTasks("pre-build", config.preBuildTasks || [], version, config);
+
+        log(`${colors.bgBlue(" ")} Processing build targets.`);
+        // run build targets
+        await build(version, config);
+        log(`${colors.bgGreen(" ")} Processed build targets.`);
+
+        // run any post-build tasks
+        await runTasks("post-build", config.postBuildTasks || [], version, config);
+
+    } catch (e) {
+
+        log(`${colors.bgRed(" ")} ${colors.bold(colors.red(`Build error`))}.`);
+        log(`${colors.bgRed(" ")} ${colors.bold(colors.red("Error:"))} ${colors.bold(colors.white(typeof e === "string" ? e : JSON.stringify(e)))}`);
+        throw e;
+    }
+}
+
+async function runTasks(name: string, tasks: BuildTask[], version: string, config: BuildSchema): Promise<void> {
+
+    log(`${colors.bgBlue(" ")} Beginning (${tasks.length}) ${name} tasks.`);
+    for (let i = 0; i < tasks.length; i++) {
+
+        const task = tasks[i];
+
+        if (typeof task === "undefined" || task === null) {
+            continue;
         }
 
-        // gate the package names so folks don't try and run code down the line
-        if (!/^[\w-]+$/i.test(pkg.name)) {
-            throw new Error(`Bad package name "${pkg.name}".`);
+        if (typeof task === "function") {
+            await task(version, config);
+        } else {
+            await task.task(version, config, task.packages);
         }
-
-        const projectFolder = path.join(config.packageRoot, pkg.name);
-
-        const projectFile = path.join(projectFolder, config.configFile || "tsconfig-build.json");
-        const tsconfigObj = require(projectFile);
-
-        // establish the context that will be passed through all the build pipeline functions
-        const buildContext: BuildContext = {
-            assets: pkg.assets || config.assets,
-            name: pkg.name,
-            projectFile: projectFile,
-            projectFolder: projectFolder,
-            targetFolder: path.join(projectFolder, tsconfigObj.compilerOptions.outDir),
-            tsconfigObj: tsconfigObj,
-            version: version,
-        };
-
-        // select the correct build pipeline
-        const activeBuildPipeline = pkg.buildPipeline || config.buildPipeline;
-
-        // log we have added the file
-        util.log(`${util.colors.bgBlue(" ")} Adding ${util.colors.cyan(buildContext.projectFile)} to the build pipeline.`);
-
-        return activeBuildPipeline.reduce((subPipe, func) => subPipe.then(() => func(buildContext)), pipe).then(_ => {
-
-            util.log(`${util.colors.bgGreen(" ")} Built ${util.colors.cyan(buildContext.projectFile)}.`);
-
-        }).catch(e => {
-
-            util.log(`${util.colors.bgRed(" ")} ${util.colors.bold.red(`Error building `)} ${util.colors.bold.cyan(buildContext.projectFile)}.`);
-            util.log(`${util.colors.bgRed(" ")} ${util.colors.bold.red("Error:")} ${util.colors.bold.white(typeof e === "string" ? e : JSON.stringify(e))}`);
-        });
-
-    }, Promise.resolve());
+    }
+    log(`${colors.bgGreen(" ")} Finished ${name} tasks.`);
 }

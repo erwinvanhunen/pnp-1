@@ -1,7 +1,7 @@
 # @pnp/common/storage
 
 This module provides a thin wrapper over the browser storage options, local and session. If neither option is available it shims storage with
-a non-persistent in memory polyfill. Optionally through configuratrion you can activate expiration. Sample usage is shown below.
+a non-persistent in memory polyfill. Optionally through configuration you can activate expiration. Sample usage is shown below.
 
 ## PnPClientStorage
 
@@ -79,9 +79,9 @@ The second method is to enable automated cache expiration through global config.
 
 ```TypeScript
 
-import { RuntimeConfig } from "@pnp/common";
+import { setup } from "@pnp/common";
 
-RuntimeConfig.setup({
+setup({
     enableCacheExpiration: true,
     cacheExpirationIntervalMilliseconds: 1000, // optional
 });

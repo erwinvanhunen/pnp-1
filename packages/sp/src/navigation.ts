@@ -1,5 +1,7 @@
-import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection } from "./sharepointqueryable";
+import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection, defaultPath } from "./sharepointqueryable";
 import { MenuNodeCollection } from "./types";
+import { jsS, extend, TypedHash } from "@pnp/common";
+import { metadata } from "./utils/metadata";
 
 /**
  * Result from adding a navigation node
@@ -16,10 +18,10 @@ export interface NavigationNodeAddResult {
  */
 export class NavigationNodes extends SharePointQueryableCollection {
 
-    /**
-     * Gets a navigation node by id
-     *
-     * @param id The id of the node
+    /**	    
+     * Gets a navigation node by id	
+     *	
+     * @param id The id of the node	
      */
     public getById(id: number): NavigationNode {
         const node = new NavigationNode(this);
@@ -36,12 +38,11 @@ export class NavigationNodes extends SharePointQueryableCollection {
      */
     public add(title: string, url: string, visible = true): Promise<NavigationNodeAddResult> {
 
-        const postBody = JSON.stringify({
+        const postBody = jsS(extend(metadata("SP.NavigationNode"), {
             IsVisible: visible,
             Title: title,
             Url: url,
-            "__metadata": { "type": "SP.NavigationNode" },
-        });
+        }));
 
         return this.clone(NavigationNodes, null).postCore({ body: postBody }).then((data) => {
             return {
@@ -59,7 +60,7 @@ export class NavigationNodes extends SharePointQueryableCollection {
      */
     public moveAfter(nodeId: number, previousNodeId: number): Promise<void> {
 
-        const postBody = JSON.stringify({
+        const postBody = jsS({
             nodeId: nodeId,
             previousNodeId: previousNodeId,
         });
@@ -87,23 +88,43 @@ export class NavigationNode extends SharePointQueryableInstance {
     public delete(): Promise<void> {
         return super.deleteCore();
     }
+
+    /**
+     * Updates this node
+     * 
+     * @param properties Properties used to update this node
+     */
+    public update(properties: TypedHash<string | number | boolean>): Promise<NavNodeUpdateResult> {
+
+        const postBody = jsS(extend({
+            "__metadata": { "type": "SP.NavigationNode" },
+        }, properties));
+
+        return this.postCore({
+            body: postBody,
+            headers: {
+                "X-HTTP-Method": "MERGE",
+            },
+        }).then((data) => {
+            return {
+                data: data,
+                node: this,
+            };
+        });
+    }
 }
 
+export interface NavNodeUpdateResult {
+    data: any;
+    node: NavigationNode;
+}
 
 /**
  * Exposes the navigation components
  *
  */
+@defaultPath("navigation")
 export class Navigation extends SharePointQueryable {
-
-    /**
-     * Creates a new instance of the Navigation class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of these navigation components
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "navigation") {
-        super(baseUrl, path);
-    }
 
     /**
      * Gets the quicklaunch navigation nodes for the current context
@@ -132,8 +153,8 @@ export interface INavigationService {
  */
 export class NavigationService extends SharePointQueryable implements INavigationService {
 
-    constructor(path: string = null) {
-        super("_api/navigation", path);
+    constructor(baseUrl: string | SharePointQueryable, path: string = null) {
+        super(baseUrl, path);
     }
 
     /**
@@ -146,8 +167,8 @@ export class NavigationService extends SharePointQueryable implements INavigatio
      */
     public getMenuState(menuNodeKey: string = null, depth = 10, mapProviderName: string = null, customProperties: string = null): Promise<MenuNodeCollection> {
 
-        return (new NavigationService("MenuState")).postCore({
-            body: JSON.stringify({
+        return (new NavigationService(this, "_api/navigation/MenuState")).postCore({
+            body: jsS({
                 customProperties: customProperties,
                 depth: depth,
                 mapProviderName: mapProviderName,
@@ -164,8 +185,8 @@ export class NavigationService extends SharePointQueryable implements INavigatio
      */
     public getMenuNodeKey(currentUrl: string, mapProviderName: string = null): Promise<string> {
 
-        return (new NavigationService("MenuNodeKey")).postCore({
-            body: JSON.stringify({
+        return (new NavigationService(this, "_api/navigation/MenuNodeKey")).postCore({
+            body: jsS({
                 currentUrl: currentUrl,
                 mapProviderName: mapProviderName,
             }),

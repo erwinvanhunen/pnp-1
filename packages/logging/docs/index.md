@@ -16,7 +16,7 @@ The logging framework is based on the Logger class to which any number of listen
 
 ```TypeScript
 /**
- * Interface that defines a log listner
+ * Interface that defines a log listener
  *
  */
 export interface LogListener {
@@ -168,3 +168,7 @@ class MyListener implements LogListener {
 Logger.subscribe(new MyListener());
 ```
 
+## UML
+![Graphical UML diagram](../../documentation/img/pnpjs-logging-uml.svg)
+
+Graphical UML diagram of @pnp/logging. Right-click the diagram and open in new tab if it is too small.

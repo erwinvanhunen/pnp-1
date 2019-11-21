@@ -1,11 +1,9 @@
-import { GraphQueryable, GraphQueryableInstance } from "./graphqueryable";
+import { GraphQueryableInstance, defaultPath } from "./graphqueryable";
 import { BlobParser, BufferParser } from "@pnp/odata";
+import { Photo as IPhoto } from "@microsoft/microsoft-graph-types";
 
-export class Photo extends GraphQueryableInstance {
-
-    constructor(baseUrl: string | GraphQueryable, path = "photo") {
-        super(baseUrl, path);
-    }
+@defaultPath("photo")
+export class Photo extends GraphQueryableInstance<IPhoto> {
 
     /**
      * Gets the image bytes as a blob (browser)

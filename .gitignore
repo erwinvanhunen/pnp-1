@@ -9,6 +9,8 @@ pids
 *.pid
 *.seed
 
+.idea/
+
 # Coverage directory used by tools like istanbul
 coverage
 
@@ -21,11 +23,13 @@ node_modules
 # generated folders/files
 /build
 /dist
-/debugging
-/testing
+/site
+.awcache
 
 # Optional npm cache directory
 .npm
+
+.idea
 
 # allow folks to add things to the debug /launch and /serve folder, but don't include them in git
 debug/launch/*
@@ -37,16 +41,16 @@ debug/launch/*
 debug/serve/*
 !debug/serve/main.ts
 !debug/serve/tsconfig.json
+!debug/serve/webpack.config.js
 
 # project settings
 settings.js
 
 bower_components
 
+# we don't use this in the repo
+package-lock.json
+
 # need to include this for bower to work, but leave this ignored as PRs
 # with updates to dist will be disallowed
 dist
-
-# by default we ignore docs as we don't want the generated files in the dev branch
-# we will manually update docs during the docs publish process to master
-/docs

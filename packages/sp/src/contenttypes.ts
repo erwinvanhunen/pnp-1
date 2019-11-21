@@ -1,29 +1,13 @@
-import { Util, TypedHash } from "@pnp/common";
-import { SharePointQueryable, SharePointQueryableCollection, SharePointQueryableInstance } from "./sharepointqueryable";
+import { TypedHash, jsS } from "@pnp/common";
+import { SharePointQueryableCollection, SharePointQueryableInstance, defaultPath } from "./sharepointqueryable";
+import { metadata } from "./utils/metadata";
 
 /**
  * Describes a collection of content types
  *
  */
+@defaultPath("contenttypes")
 export class ContentTypes extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the ContentTypes class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this content types collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "contenttypes") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Gets a ContentType by content type id
-     */
-    public getById(id: string): ContentType {
-        const ct: ContentType = new ContentType(this);
-        ct.concat(`('${id}')`);
-        return ct;
-    }
 
     /**
      * Adds an existing contenttype to a content type collection
@@ -32,7 +16,7 @@ export class ContentTypes extends SharePointQueryableCollection {
      */
     public addAvailableContentType(contentTypeId: string): Promise<ContentTypeAddResult> {
 
-        const postBody: string = JSON.stringify({
+        const postBody: string = jsS({
             "contentTypeId": contentTypeId,
         });
 
@@ -42,6 +26,15 @@ export class ContentTypes extends SharePointQueryableCollection {
                 data: data,
             };
         });
+    }
+
+    /**	
+     * Gets a ContentType by content type id	
+     */
+    public getById(id: string): ContentType {
+        const ct: ContentType = new ContentType(this);
+        ct.concat(`('${id}')`);
+        return ct;
     }
 
     /**
@@ -61,12 +54,11 @@ export class ContentTypes extends SharePointQueryableCollection {
         group = "Custom Content Types",
         additionalSettings: TypedHash<string | number | boolean> = {}): Promise<ContentTypeAddResult> {
 
-        const postBody = JSON.stringify(Util.extend({
+        const postBody = jsS(Object.assign(metadata("SP.ContentType"), {
             "Description": description,
             "Group": group,
             "Id": { "StringValue": id },
             "Name": name,
-            "__metadata": { "type": "SP.ContentType" },
         }, additionalSettings));
 
         return this.postCore({ body: postBody }).then((data) => {
@@ -112,13 +104,7 @@ export class ContentType extends SharePointQueryableInstance {
     /**
      * Delete this content type
      */
-    public delete(): Promise<void> {
-        return this.postCore({
-            headers: {
-                "X-HTTP-Method": "DELETE",
-            },
-        });
-    }
+    public delete = this._delete;
 }
 
 export interface ContentTypeAddResult {
@@ -129,21 +115,12 @@ export interface ContentTypeAddResult {
 /**
  * Represents a collection of field link instances
  */
+@defaultPath("fieldlinks")
 export class FieldLinks extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the ContentType class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this content type instance
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "fieldlinks") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Gets a FieldLink by GUID id
-     *
-     * @param id The GUID id of the field link
+    /**	
+     * Gets a FieldLink by GUID id	
+     *	
+     * @param id The GUID id of the field link	
      */
     public getById(id: string) {
         const fl = new FieldLink(this);

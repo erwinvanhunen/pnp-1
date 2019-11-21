@@ -1,83 +1,89 @@
 import { SharePointQueryableConstructor } from "./sharepointqueryable";
-import { extractWebUrl } from "./utils/extractweburl";
-import { Util } from "@pnp/common";
+import { extend, combine, hOP } from "@pnp/common";
 import { Logger, LogLevel } from "@pnp/logging";
-import { SPODataIdException } from "./exceptions";
 import { ODataParser, ODataParserBase } from "@pnp/odata";
+import { extractWebUrl } from "./utils/extractweburl";
 
-export function spExtractODataId(candidate: any): string {
+export function odataUrlFrom(candidate: any): string {
 
-    if (candidate.hasOwnProperty("odata.id")) {
-        return candidate["odata.id"];
-    } else if (candidate.hasOwnProperty("__metadata") && candidate.__metadata.hasOwnProperty("id")) {
-        return candidate.__metadata.id;
+    const parts: string[] = [];
+    const s = ["odata.type", "odata.editLink", "__metadata", "odata.metadata"];
+    if (hOP(candidate, s[0]) && candidate[s[0]] === "SP.Web") {
+        // webs return an absolute url in the editLink
+        if (hOP(candidate, s[1])) {
+            parts.push(candidate[s[1]]);
+        } else if (hOP(candidate, s[2])) {
+            // we are dealing with verbose, which has an absolute uri
+            parts.push(candidate.__metadata.uri);
+        }
+
     } else {
-        throw new SPODataIdException(candidate);
+
+        if (hOP(candidate, s[3]) && hOP(candidate, s[1])) {
+            // we are dealign with minimal metadata (default)
+            parts.push(extractWebUrl(candidate[s[3]]), "_api", candidate[s[1]]);
+        } else if (hOP(candidate, s[1])) {
+            parts.push("_api", candidate[s[1]]);
+        } else if (hOP(candidate, s[2])) {
+            // we are dealing with verbose, which has an absolute uri
+            parts.push(candidate.__metadata.uri);
+        }
     }
+
+    if (parts.length < 1) {
+        Logger.write("No uri information found in ODataEntity parsing, chaining will fail for this object.", LogLevel.Warning);
+        return "";
+    }
+
+    return combine(...parts);
 }
 
-class SPODataEntityParserImpl<T> extends ODataParserBase<T> {
+class SPODataEntityParserImpl<T, D> extends ODataParserBase<T & D> {
 
     constructor(protected factory: SharePointQueryableConstructor<T>) {
         super();
     }
 
-    public hydrate = (d: any) => {
-        const o = <T>new this.factory(spGetEntityUrl(d), null);
-        return Util.extend(o, d);
+    public hydrate = (d: D) => {
+        const o = <T>new this.factory(odataUrlFrom(d), null);
+        return extend(o, d);
     }
 
-    public parse(r: Response): Promise<T> {
+    public parse(r: Response): Promise<T & D> {
         return super.parse(r).then((d: any) => {
-            const o = <T>new this.factory(spGetEntityUrl(d), null);
-            return Util.extend(o, d);
+            const o = <T>new this.factory(odataUrlFrom(d), null);
+            return extend<T, D>(o, d);
         });
     }
 }
 
-class SPODataEntityArrayParserImpl<T> extends ODataParserBase<T[]> {
+class SPODataEntityArrayParserImpl<T, D> extends ODataParserBase<(T & D)[]> {
 
     constructor(protected factory: SharePointQueryableConstructor<T>) {
         super();
     }
 
-    public hydrate = (d: any[]) => {
+    public hydrate = (d: D[]) => {
         return d.map(v => {
-            const o = <T>new this.factory(spGetEntityUrl(v), null);
-            return Util.extend(o, v);
+            const o = <T>new this.factory(odataUrlFrom(v), null);
+            return extend(o, v);
         });
     }
 
-    public parse(r: Response): Promise<T[]> {
-        return super.parse(r).then((d: any[]) => {
+    public parse(r: Response): Promise<(T & D)[]> {
+        return super.parse(r).then((d: D[]) => {
             return d.map(v => {
-                const o = <T>new this.factory(spGetEntityUrl(v), null);
-                return Util.extend(o, v);
+                const o = <T>new this.factory(odataUrlFrom(v), null);
+                return extend(o, v);
             });
         });
     }
 }
 
-export function spGetEntityUrl(entity: any): string {
-
-    if (entity.hasOwnProperty("odata.metadata") && entity.hasOwnProperty("odata.editLink")) {
-        // we are dealign with minimal metadata (default)
-        return Util.combinePaths(extractWebUrl(entity["odata.metadata"]), "_api", entity["odata.editLink"]);
-    } else if (entity.hasOwnProperty("__metadata")) {
-        // we are dealing with verbose, which has an absolute uri
-        return entity.__metadata.uri;
-    } else {
-        // we are likely dealing with nometadata, so don't error but we won't be able to
-        // chain off these objects
-        Logger.write("No uri information found in ODataEntity parsing, chaining will fail for this object.", LogLevel.Warning);
-        return "";
-    }
+export function spODataEntity<T, DataType = any>(factory: SharePointQueryableConstructor<T>): ODataParser<T & DataType> {
+    return new SPODataEntityParserImpl<T, DataType>(factory);
 }
 
-export function spODataEntity<T>(factory: SharePointQueryableConstructor<T>): ODataParser<T> {
-    return new SPODataEntityParserImpl(factory);
-}
-
-export function spODataEntityArray<T>(factory: SharePointQueryableConstructor<T>): ODataParser<T[]> {
-    return new SPODataEntityArrayParserImpl(factory);
+export function spODataEntityArray<T, DataType = any>(factory: SharePointQueryableConstructor<T>): ODataParser<(T & DataType)[]> {
+    return new SPODataEntityArrayParserImpl<T, DataType>(factory);
 }

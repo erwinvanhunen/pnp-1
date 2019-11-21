@@ -1,8 +1,10 @@
-import { ODataParser } from "./core";
+import { FetchOptions, RequestClient, extend, isFunc, hOP } from "@pnp/common";
+import { LogLevel, Logger } from "@pnp/logging";
+import { CachingOptions, CachingParserWrapper, ICachingOptions } from "./caching";
 import { ODataBatch } from "./odatabatch";
-import { ICachingOptions, CachingParserWrapper, CachingOptions } from "./caching";
-import { Logger, LogLevel } from "@pnp/logging";
-import { Util, FetchOptions, RequestClient } from "@pnp/common";
+import { ODataParser } from "./parsers";
+
+export type PipelineMethod<T> = (c: RequestContext<T>) => Promise<RequestContext<T>>;
 
 /**
  * Defines the context for a given request to be processed in the pipeline
@@ -16,7 +18,7 @@ export interface RequestContext<T> {
     isCached: boolean;
     options: FetchOptions;
     parser: ODataParser<T>;
-    pipeline: Array<(c: RequestContext<T>) => Promise<RequestContext<T>>>;
+    pipeline: PipelineMethod<T>[];
     requestAbsoluteUrl: string;
     requestId: string;
     result?: T;
@@ -29,15 +31,15 @@ export interface RequestContext<T> {
  *
  * @param context The current context
  */
-function returnResult<T>(context: RequestContext<T>): Promise<T | null> {
+function returnResult<T>(context: RequestContext<T>): Promise<T> {
 
     Logger.log({
-        data: context.result,
-        level: LogLevel.Verbose,
-        message: `[${context.requestId}] (${(new Date()).getTime()}) Returning result, see data property for value.`,
+        data: Logger.activeLogLevel === LogLevel.Verbose ? context.result : {},
+        level: LogLevel.Info,
+        message: `[${context.requestId}] (${(new Date()).getTime()}) Returning result from pipeline. Set logging to verbose to see data.`,
     });
 
-    return Promise.resolve(context.result || null);
+    return Promise.resolve(context.result!);
 }
 
 /**
@@ -61,7 +63,7 @@ export function setResult<T>(context: RequestContext<T>, value: any): Promise<Re
 function next<T>(c: RequestContext<T>): Promise<RequestContext<T>> {
 
     if (c.pipeline.length > 0) {
-        return c.pipeline.shift()(c);
+        return c.pipeline.shift()!(c);
     } else {
         return Promise.resolve(c);
     }
@@ -72,18 +74,23 @@ function next<T>(c: RequestContext<T>): Promise<RequestContext<T>> {
  *
  * @param context Current context
  */
-export function pipe<T>(context: RequestContext<T>): Promise<T | null> {
+export function pipe<T>(context: RequestContext<T>): Promise<T> {
 
     if (context.pipeline.length < 1) {
         Logger.write(`[${context.requestId}] (${(new Date()).getTime()}) Request pipeline contains no methods!`, LogLevel.Warning);
     }
 
-    return next(context)
-        .then(ctx => returnResult(ctx))
-        .catch((e: Error) => {
-            Logger.error(e);
-            throw e;
-        });
+    const promise = next(context).then(ctx => returnResult(ctx)).catch((e: Error) => {
+        Logger.error(e);
+        throw e;
+    });
+
+    if (context.isBatched) {
+        // this will block the batch's execute method from returning until the child requets have been resolved
+        context.batch.addResolveBatchDependency(promise);
+    }
+
+    return promise;
 }
 
 /**
@@ -98,7 +105,7 @@ export function requestPipelineMethod(alwaysRun = false) {
         descriptor.value = function (...args: any[]) {
 
             // if we have a result already in the pipeline, pass it along and don't call the tagged method
-            if (!alwaysRun && args.length > 0 && args[0].hasOwnProperty("hasResult") && args[0].hasResult) {
+            if (!alwaysRun && args.length > 0 && hOP(args[0], "hasResult") && args[0].hasResult) {
                 Logger.write(`[${args[0].requestId}] (${(new Date()).getTime()}) Skipping request pipeline method ${propertyKey}, existing result in pipeline.`, LogLevel.Verbose);
                 return Promise.resolve(args[0]);
             }
@@ -122,7 +129,6 @@ export class PipelineMethods {
      */
     @requestPipelineMethod(true)
     public static logStart<T>(context: RequestContext<T>): Promise<RequestContext<T>> {
-
         return new Promise<RequestContext<T>>(resolve => {
 
             Logger.log({
@@ -144,13 +150,13 @@ export class PipelineMethods {
         return new Promise<RequestContext<T>>(resolve => {
 
             // handle caching, if applicable
-            if (context.verb === "GET" && context.isCached) {
+            if (context.isCached) {
 
                 Logger.write(`[${context.requestId}] (${(new Date()).getTime()}) Caching is enabled for request, checking cache...`, LogLevel.Info);
 
                 let cacheOptions = new CachingOptions(context.requestAbsoluteUrl.toLowerCase());
-                if (typeof context.cachingOptions !== "undefined") {
-                    cacheOptions = Util.extend(cacheOptions, context.cachingOptions);
+                if (context.cachingOptions !== undefined) {
+                    cacheOptions = extend(cacheOptions, context.cachingOptions);
                 }
 
                 // we may not have a valid store
@@ -158,16 +164,18 @@ export class PipelineMethods {
                     // check if we have the data in cache and if so resolve the promise and return
                     let data = cacheOptions.store.get(cacheOptions.key);
                     if (data !== null) {
-                        // ensure we clear any help batch dependency we are resolving from the cache
+                        // ensure we clear any held batch dependency we are resolving from the cache
                         Logger.log({
                             data: Logger.activeLogLevel === LogLevel.Info ? {} : data,
                             level: LogLevel.Info,
                             message: `[${context.requestId}] (${(new Date()).getTime()}) Value returned from cache.`,
                         });
-                        context.batchDependency();
-                        // handle the case where a parser needs to take special actions with a cached result (such as getAs)
-                        if (context.parser.hasOwnProperty("hydrate")) {
-                            data = context.parser.hydrate!(data);
+                        if (isFunc(context.batchDependency)) {
+                            context.batchDependency();
+                        }
+                        // handle the case where a parser needs to take special actions with a cached result
+                        if (hOP(context.parser, "hydrate")) {
+                            data = context.parser.hydrate(data);
                         }
                         return setResult(context, data).then(ctx => resolve(ctx));
                     }
@@ -195,10 +203,12 @@ export class PipelineMethods {
             if (context.isBatched) {
 
                 // we are in a batch, so add to batch, remove dependency, and resolve with the batch's promise
-                const p = context.batch.add(context.requestAbsoluteUrl, context.verb, context.options, context.parser);
+                const p = context.batch.add(context.requestAbsoluteUrl, context.verb, context.options, context.parser, context.requestId);
 
                 // we release the dependency here to ensure the batch does not execute until the request is added to the batch
-                context.batchDependency();
+                if (isFunc(context.batchDependency)) {
+                    context.batchDependency();
+                }
 
                 Logger.write(`[${context.requestId}] (${(new Date()).getTime()}) Batching request in batch ${context.batch.batchId}.`, LogLevel.Info);
 
@@ -211,7 +221,7 @@ export class PipelineMethods {
 
                 // we are not part of a batch, so proceed as normal
                 const client = context.clientFactory();
-                const opts = Util.extend(context.options || {}, { method: context.verb });
+                const opts = extend(context.options || {}, { method: context.verb });
                 client.fetch(context.requestAbsoluteUrl, opts)
                     .then(response => context.parser.parse(response))
                     .then(result => setResult(context, result))

@@ -2,6 +2,9 @@ export { graph, GraphRest } from "./rest";
 
 export {
     GroupAddResult,
+    GroupType,
+    Group,
+    Groups,
 } from "./groups";
 
 export {
@@ -21,6 +24,28 @@ export {
     GraphConfigurationPart,
 } from "./config/graphlibconfig";
 
-export {
-    SPfxClient,
-} from "./net/spfxclient";
+export * from "./teams";
+
+export * from "./types";
+
+export * from "./onenote";
+
+export * from "./contacts";
+
+export * from "./onedrive";
+
+export * from "./planner";
+
+export * from "./directoryobjects";
+
+export * from "./invitations";
+
+export * from "./subscriptions";
+
+export * from "./security";
+
+export * from "./people";
+
+export * from "./sites";
+
+export * from "./insights";

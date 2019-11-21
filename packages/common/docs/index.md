@@ -8,23 +8,27 @@ The common modules provides a set of utilities classes and reusable building blo
 
 Install the library and required dependencies
 
-`npm install @pnp\logging @pnp\common --save`
+`npm install @pnp/common --save`
 
 Import and use functionality, see details on modules below.
 
 ```TypeScript
-import { Util } from "@pnp/common";
+import { getGUID } from "@pnp/common";
 
-console.log(Util.getGUID());
+console.log(getGUID());
 ```
 
 ## Exports
 
-* [blobutil](blobutil.md)
+* [adalclient](adalclient.md)
 * [collections](collections.md)
-* [decorators](decorators.md)
-* [exceptions](exceptions.md)
 * [libconfig](libconfig.md)
 * [netutil](netutil.md)
 * [storage](storage.md)
 * [util](util.md)
+* [Custom HttpClient](custom-httpclientimpl.md)
+
+## UML
+![Graphical UML diagram](../../documentation/img/pnpjs-common-uml.svg)
+
+Graphical UML diagram of @pnp/common. Right-click the diagram and open in new tab if it is too small.

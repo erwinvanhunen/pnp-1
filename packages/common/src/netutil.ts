@@ -1,4 +1,4 @@
-import { Util } from "./util";
+import { extend, objectDefinedNotNull } from "./util";
 
 declare var global: { fetch(url: string, options: any): Promise<Response> };
 
@@ -28,7 +28,7 @@ export interface RequestClient {
 }
 
 export function mergeHeaders(target: Headers, source: any): void {
-    if (typeof source !== "undefined" && source !== null) {
+    if (source !== undefined && source !== null) {
         const temp = <any>new Request("", { headers: source });
         temp.headers.forEach((value: string, name: string) => {
             target.append(name, value);
@@ -38,9 +38,9 @@ export function mergeHeaders(target: Headers, source: any): void {
 
 export function mergeOptions(target: ConfigOptions, source: ConfigOptions): void {
 
-    if (Util.objectDefinedNotNull(source)) {
-        const headers = Util.extend(target.headers || {}, source.headers);
-        target = Util.extend(target, source);
+    if (objectDefinedNotNull(source)) {
+        const headers = extend(target.headers || {}, source.headers!);
+        target = extend(target, source);
         target.headers = headers;
     }
 }
@@ -59,8 +59,16 @@ export class FetchClient implements HttpClientImpl {
  */
 export class BearerTokenFetchClient extends FetchClient {
 
-    constructor(private _token: string) {
+    constructor(private _token: string | null) {
         super();
+    }
+
+    public get token() {
+        return this._token || "";
+    }
+
+    public set token(token: string) {
+        this._token = token;
     }
 
     public fetch(url: string, options: FetchOptions = {}): Promise<Response> {

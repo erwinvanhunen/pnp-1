@@ -1,21 +1,19 @@
 ![SharePoint Patterns and Practices](https://devofficecdn.azureedge.net/media/Default/PnP/sppnp.png)
 
-The SharePoint Patterns and Practices client side libraries were created to help enable developers to do their best work, without worrying about the exact
-REST api details. Built with feedback from the community they represent a way to simplify your day-to-day dev cycle while relying on tested and proven
-patterns.
+PnPjs is a fluent JavaScript API for consuming SharePoint and Office 365 REST APIs in a type-safe way. You can use it with SharePoint Framework, Nodejs, or JavaScript projects. This an open source initiative complements existing SDKs provided by Microsoft offering developers another way to consume information from SharePoint and Office 365.
 
 Please use [http://aka.ms/sppnp](http://aka.ms/sppnp) for the latest updates around the whole *SharePoint Patterns and Practices (PnP) initiative*.
 
-**If you are moving from sp-pnp-js please review the [transition guide](https://pnp.github.io/pnp/transition-guide.html)**
+**If you are moving from sp-pnp-js please review the [transition guide](https://pnp.github.io/pnpjs/documentation/transition-guide/)**
 
 ## Getting Started
 
-Please see the [Getting Started guide](https://pnp.github.io/pnp/getting-started.html) in the main documentation.
+Please see the [Getting Started guide](https://pnp.github.io/pnpjs/documentation/getting-started/) in the main documentation.
 
 ## Documentation
 
-Please review the [documentation](https://pnp.github.io/pnp/) for the SharePoint Patterns and Practices Client Side libraries. This
-site is updated with each release. If cannot find what you need, please let us know by logging an [documentation request](https://github.com/pnp/pnp/issues).
+Please review the [documentation](https://pnp.github.io/pnpjs/) for the PnPJS libraries. This
+site is updated with each release. If cannot find what you need, please let us know by logging an [documentation request](https://github.com/pnp/pnpjs/issues).
 
 ## Packages
 
@@ -58,6 +56,14 @@ The following packages comprise the Patterns and Practices client side libraries
 
 **Provides functionality for working within SharePoint add-ins**
 
+## [@pnp/sp-taxonomy](packages/sp-taxonomy/docs/index.md)
+
+**Provides a fluent API for querying taxonomy information**
+
+## [@pnp/sp-clientsvc](packages/sp-clientsvc/docs/index.md)
+
+**Handles generic communication with client.svc endpoint, removing SP.\*.js dependencies**
+
 
 ## Authors
 This project's contributors include Microsoft and [community contributors](AUTHORS). Work is done as as open source community project.
@@ -70,4 +76,4 @@ This project has adopted the [Microsoft Open Source Code of Conduct](https://ope
 ### Disclaimer
 **THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.**
 
-![](https://telemetry.sharepointpnp.com/@pnp/pnp/readme)
+![](https://telemetry.sharepointpnp.com/@pnp/pnpjs/readme)

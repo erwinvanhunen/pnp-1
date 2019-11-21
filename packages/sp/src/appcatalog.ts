@@ -1,6 +1,6 @@
 import { SharePointQueryable, SharePointQueryableInstance, SharePointQueryableCollection } from "./sharepointqueryable";
 import { File } from "./files";
-import { spExtractODataId } from "./odata";
+import { odataUrlFrom } from "./odata";
 import { extractWebUrl } from "./utils/extractweburl";
 
 /**
@@ -9,17 +9,7 @@ import { extractWebUrl } from "./utils/extractweburl";
 export class AppCatalog extends SharePointQueryableCollection {
 
     constructor(baseUrl: string | SharePointQueryable, path = "_api/web/tenantappcatalog/AvailableApps") {
-
-        // we need to handle the case of getting created from something that already has "_api/..." or does not
-        let candidateUrl = "";
-
-        if (typeof baseUrl === "string") {
-            candidateUrl = baseUrl;
-        } else if (typeof baseUrl !== "undefined") {
-            candidateUrl = (baseUrl as SharePointQueryable).toUrl();
-        }
-
-        super(extractWebUrl(candidateUrl), path);
+        super(extractWebUrl(typeof baseUrl === "string" ? baseUrl : baseUrl.toUrl()), path);
     }
 
     /**
@@ -40,15 +30,17 @@ export class AppCatalog extends SharePointQueryableCollection {
      */
     public add(filename: string, content: string | ArrayBuffer | Blob, shouldOverWrite = true): Promise<AppAddResult> {
 
+        const catalog = this.toUrl().indexOf("tenantappcatalog") > 0 ? "tenantappcatalog" : "sitecollectionappcatalog";
+
         // you don't add to the availableapps collection
-        const adder = new AppCatalog(extractWebUrl(this.toUrl()), `_api/web/tenantappcatalog/add(overwrite=${shouldOverWrite},url='${filename}')`);
+        const adder = new AppCatalog(extractWebUrl(this.toUrl()), `_api/web/${catalog}/add(overwrite=${shouldOverWrite},url='${filename}')`);
 
         return adder.postCore({
             body: content,
         }).then(r => {
             return {
                 data: r,
-                file: new File(spExtractODataId(r)),
+                file: new File(odataUrlFrom(r)),
             };
         });
     }
@@ -62,9 +54,11 @@ export class App extends SharePointQueryableInstance {
     /**
      * This method deploys an app on the app catalog.  It must be called in the context
      * of the tenant app catalog web or it will fail.
+     * 
+     * @param skipFeatureDeployment Deploy the app to the entire tenant
      */
-    public deploy(): Promise<void> {
-        return this.clone(App, "Deploy").postCore();
+    public deploy(skipFeatureDeployment = false): Promise<void> {
+        return this.clone(App, `Deploy(${skipFeatureDeployment})`).postCore();
     }
 
     /**

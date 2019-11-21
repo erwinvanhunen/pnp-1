@@ -1,5 +1,5 @@
 export {
-    spExtractODataId,
+    odataUrlFrom,
     spODataEntity,
     spODataEntityArray,
 } from "./odata";
@@ -34,6 +34,22 @@ export {
     AttachmentFileAddResult,
     AttachmentFileInfo,
 } from "./attachmentfiles";
+
+export {
+    SPBatch,
+} from "./batch";
+
+export * from "./clientsidepages";
+
+export * from "./comments";
+
+export {
+    ContentType,
+    ContentTypes,
+    ContentTypeAddResult,
+    FieldLink,
+    FieldLinks,
+} from "./contenttypes";
 
 export {
     SPConfiguration,
@@ -100,6 +116,13 @@ export {
 } from "./lists";
 
 export {
+    RegionalSettings,
+    InstalledLanguages,
+    TimeZone,
+    TimeZones,
+} from "./regionalsettings";
+
+export {
     RelatedItem,
     RelatedItemManger,
 } from "./relateditems";
@@ -121,6 +144,7 @@ export {
     SearchPropertyValue,
     SearchQuery,
     SearchQueryBuilder,
+    ISearchQueryBuilder,
     SearchResult,
     SearchResults,
     Sort,
@@ -155,6 +179,8 @@ export {
     SiteUserProps,
 } from "./siteusers";
 
+export * from "./social";
+
 export {
     SubscriptionAddResult,
     SubscriptionUpdateResult,
@@ -168,11 +194,26 @@ export {
 } from "./usercustomactions";
 
 export {
+    UserProfileQuery,
+} from "./userprofiles";
+
+export {
+    toAbsoluteUrl,
+} from "./utils/toabsoluteurl";
+
+export {
+    extractWebUrl,
+} from "./utils/extractweburl";
+
+export {
     UtilityMethod,
     CreateWikiPageResult,
 } from "./utilities";
 
 export {
+    View,
+    Views,
+    ViewFields,
     ViewAddResult,
     ViewUpdateResult,
 } from "./views";
@@ -190,3 +231,24 @@ export {
     GetCatalogResult,
     WebEnsureUserResult,
 } from "./webs";
+
+export {
+    SiteScripts,
+    SiteScriptUtilityMethods,
+    SiteScriptInfo,
+    SiteScriptUpdateInfo,
+} from "./sitescripts";
+
+export {
+    SiteDesigns,
+    SiteDesignsUtilityMethods,
+    SiteDesignCreationInfo,
+    SiteDesignUpdateInfo,
+    SiteDesignInfo,
+    SiteDesignPrincipals,
+} from "./sitedesigns";
+
+export {
+    HubSite,
+    HubSites,
+} from "./hubsites";

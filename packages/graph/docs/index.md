@@ -18,7 +18,7 @@ import { graph } from "@pnp/graph";
 (function main() {
 
     // here we will load the current web's properties
-    graph.v1.groups.get().then(g => {
+    graph.groups.get().then(g => {
 
         console.log(`Groups: ${JSON.stringify(g, null, 4)}`);
     });
@@ -58,7 +58,7 @@ public render(): void {
     this.domElement.innerHTML = `Loading...`;
 
     // here we will load the current web's properties
-    graph.v1.groups.get().then(groups => {
+    graph.groups.get().then(groups => {
 
         this.domElement.innerHTML = `Groups: <ul>${groups.map(g => `<li>${g.displayName}</li>`).join("")}</ul>`;
     });
@@ -87,8 +87,13 @@ graph.setup({
 });
 
 // here we will load the groups information
-graph.v1.groups.get().then(g => {
+graph.groups.get().then(g => {
 
     console.log(`Groups: ${JSON.stringify(g, null, 4)}`);
 });
 ```
+
+## UML
+![Graphical UML diagram](../../documentation/img/pnpjs-graph-uml.svg)
+
+Graphical UML diagram of @pnp/graph. Right-click the diagram and open in new tab if it is too small.

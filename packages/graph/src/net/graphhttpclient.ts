@@ -1,14 +1,16 @@
 import {
-    Util,
+    extend,
     RequestClient,
     mergeHeaders,
     FetchOptions,
+    HttpClientImpl,
+    getCtxCallback,
 } from "@pnp/common";
 import { GraphRuntimeConfig } from "../config/graphlibconfig";
 
 export class GraphHttpClient implements RequestClient {
 
-    private _impl: GraphHttpClientImpl;
+    private _impl: HttpClientImpl;
 
     constructor() {
 
@@ -25,7 +27,16 @@ export class GraphHttpClient implements RequestClient {
         // second we add the local options so we can overwrite the globals
         mergeHeaders(headers, options.headers);
 
-        const opts = Util.extend(options, { headers: headers });
+        if (!headers.has("Content-Type")) {
+            headers.append("Content-Type", "application/json");
+        }
+
+        if (!headers.has("SdkVersion")) {
+            // this marks the requests for understanding by the service
+            headers.append("SdkVersion", "PnPCoreJS/$$Version$$");
+        }
+
+        const opts = extend(options, { headers: headers });
 
         return this.fetchRaw(url, opts);
     }
@@ -35,11 +46,11 @@ export class GraphHttpClient implements RequestClient {
         // here we need to normalize the headers
         const rawHeaders = new Headers();
         mergeHeaders(rawHeaders, options.headers);
-        options = Util.extend(options, { headers: rawHeaders });
+        options = extend(options, { headers: rawHeaders });
 
         const retry = (ctx: RetryContext): void => {
 
-            this._impl.fetch(url, {}, options).then((response) => ctx.resolve(response)).catch((response) => {
+            this._impl.fetch(url, options).then((response) => ctx.resolve(response)).catch((response) => {
 
                 // Check if request was throttled - http status code 429
                 // Check if request failed due to server unavailable - http status code 503
@@ -60,7 +71,7 @@ export class GraphHttpClient implements RequestClient {
                 }
 
                 // Set our retry timeout for {delay} milliseconds.
-                setTimeout(Util.getCtxCallback(this, retry, ctx), delay);
+                setTimeout(getCtxCallback(this, retry, ctx), delay);
             });
         };
 
@@ -79,22 +90,22 @@ export class GraphHttpClient implements RequestClient {
     }
 
     public get(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "GET" });
+        const opts = extend(options, { method: "GET" });
         return this.fetch(url, opts);
     }
 
     public post(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "POST" });
+        const opts = extend(options, { method: "POST" });
         return this.fetch(url, opts);
     }
 
     public patch(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "PATCH" });
+        const opts = extend(options, { method: "PATCH" });
         return this.fetch(url, opts);
     }
 
     public delete(url: string, options: FetchOptions = {}): Promise<Response> {
-        const opts = Util.extend(options, { method: "DELETE" });
+        const opts = extend(options, { method: "DELETE" });
         return this.fetch(url, opts);
     }
 }
@@ -105,8 +116,4 @@ interface RetryContext {
     reject: (reason?: any) => void;
     resolve: (value?: Response | PromiseLike<Response>) => void;
     retryCount: number;
-}
-
-export interface GraphHttpClientImpl {
-    fetch(url: string, configuration: any, options: FetchOptions): Promise<Response>;
 }

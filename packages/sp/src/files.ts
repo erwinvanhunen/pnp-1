@@ -1,13 +1,13 @@
-import { SharePointQueryable, SharePointQueryableCollection, SharePointQueryableInstance } from "./sharepointqueryable";
+import { SharePointQueryableCollection, SharePointQueryableInstance, defaultPath } from "./sharepointqueryable";
 import { TextParser, BlobParser, JSONParser, BufferParser } from "@pnp/odata";
-import { Util } from "@pnp/common";
-import { MaxCommentLengthException } from "./exceptions";
+import { extend, getGUID } from "@pnp/common";
 import { LimitedWebPartManager } from "./webparts";
 import { Item } from "./items";
 import { SharePointQueryableShareableFile } from "./sharepointqueryableshareable";
-import { spGetEntityUrl } from "./odata";
+import { odataUrlFrom } from "./odata";
 
 export interface ChunkedFileUploadProgressData {
+    uploadId: string;
     stage: "starting" | "continue" | "finishing";
     blockNumber: number;
     totalBlocks: number;
@@ -20,16 +20,8 @@ export interface ChunkedFileUploadProgressData {
  * Describes a collection of File objects
  *
  */
+@defaultPath("files")
 export class Files extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the Files class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this fields collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "files") {
-        super(baseUrl, path);
-    }
 
     /**
      * Gets a File by filename
@@ -77,14 +69,12 @@ export class Files extends SharePointQueryableCollection {
         content: Blob,
         progress?: (data: ChunkedFileUploadProgressData) => void,
         shouldOverWrite = true,
-        chunkSize = 10485760): Promise<FileAddResult> {
+        chunkSize = 10485760,
+    ): Promise<FileAddResult> {
         const adder = this.clone(Files, `add(overwrite=${shouldOverWrite},url='${url}')`, false);
-        return adder.postCore().then(() => this.getByName(url)).then(file => file.setContentChunked(content, progress, chunkSize)).then((response) => {
-            return {
-                data: response,
-                file: this.getByName(url),
-            };
-        });
+        return adder.postCore()
+            .then(() => this.getByName(url))
+            .then(file => file.setContentChunked(content, progress, chunkSize));
     }
 
     /**
@@ -115,8 +105,8 @@ export class File extends SharePointQueryableShareableFile {
      * Gets a value that specifies the list item field values for the list item corresponding to the file.
      *
      */
-    public get listItemAllFields(): SharePointQueryableCollection {
-        return new SharePointQueryableCollection(this, "listItemAllFields");
+    public get listItemAllFields(): SharePointQueryableInstance {
+        return new SharePointQueryableInstance(this, "listItemAllFields");
     }
 
     /**
@@ -159,7 +149,7 @@ export class File extends SharePointQueryableShareableFile {
     public checkin(comment = "", checkinType = CheckinType.Major): Promise<void> {
 
         if (comment.length > 1023) {
-            throw new MaxCommentLengthException();
+            throw Error("The maximum comment length is 1023 characters.");
         }
 
         return this.clone(File, `checkin(comment='${comment}',checkintype=${checkinType})`).postCore();
@@ -204,7 +194,7 @@ export class File extends SharePointQueryableShareableFile {
      */
     public deny(comment = ""): Promise<void> {
         if (comment.length > 1023) {
-            throw new MaxCommentLengthException();
+            throw Error("The maximum comment length is 1023 characters.");
         }
         return this.clone(File, `deny(comment='${comment}')`).postCore();
     }
@@ -236,7 +226,7 @@ export class File extends SharePointQueryableShareableFile {
      */
     public publish(comment = ""): Promise<void> {
         if (comment.length > 1023) {
-            throw new MaxCommentLengthException();
+            throw Error("The maximum comment length is 1023 characters.");
         }
         return this.clone(File, `publish(comment='${comment}')`).postCore();
     }
@@ -265,7 +255,7 @@ export class File extends SharePointQueryableShareableFile {
      */
     public unpublish(comment = ""): Promise<void> {
         if (comment.length > 1023) {
-            throw new MaxCommentLengthException();
+            throw Error("The maximum comment length is 1023 characters.");
         }
         return this.clone(File, `unpublish(comment='${comment}')`).postCore();
     }
@@ -328,7 +318,7 @@ export class File extends SharePointQueryableShareableFile {
         const q = this.listItemAllFields;
         return q.select.apply(q, selects).get().then((d: any) => {
 
-            return Util.extend(new Item(spGetEntityUrl(d)), d);
+            return extend((new Item(odataUrlFrom(d))).configureFrom(this), d);
         });
     }
 
@@ -339,45 +329,32 @@ export class File extends SharePointQueryableShareableFile {
      * @param progress A callback function which can be used to track the progress of the upload
      * @param chunkSize The size of each file slice, in bytes (default: 10485760)
      */
-    public setContentChunked(
-        file: Blob,
-        progress?: (data: ChunkedFileUploadProgressData) => void,
-        chunkSize = 10485760): Promise<File> {
+    public setContentChunked(file: Blob, progress?: (data: ChunkedFileUploadProgressData) => void, chunkSize = 10485760): Promise<FileAddResult> {
 
-        if (typeof progress === "undefined") {
+        if (progress === undefined) {
             progress = () => null;
         }
 
-        const self = this;
         const fileSize = file.size;
         const blockCount = parseInt((file.size / chunkSize).toString(), 10) + ((file.size % chunkSize === 0) ? 1 : 0);
-        const uploadId = Util.getGUID();
+        const uploadId = getGUID();
 
         // start the chain with the first fragment
-        progress({ blockNumber: 1, chunkSize: chunkSize, currentPointer: 0, fileSize: fileSize, stage: "starting", totalBlocks: blockCount });
+        progress({ uploadId, blockNumber: 1, chunkSize, currentPointer: 0, fileSize, stage: "starting", totalBlocks: blockCount });
 
-        let chain = self.startUpload(uploadId, file.slice(0, chunkSize));
+        let chain = this.startUpload(uploadId, file.slice(0, chunkSize));
 
         // skip the first and last blocks
         for (let i = 2; i < blockCount; i++) {
-
             chain = chain.then(pointer => {
-
-                progress({ blockNumber: i, chunkSize: chunkSize, currentPointer: pointer, fileSize: fileSize, stage: "continue", totalBlocks: blockCount });
-
-                return self.continueUpload(uploadId, pointer, file.slice(pointer, pointer + chunkSize));
+                progress({ uploadId, blockNumber: i, chunkSize, currentPointer: pointer, fileSize, stage: "continue", totalBlocks: blockCount });
+                return this.continueUpload(uploadId, pointer, file.slice(pointer, pointer + chunkSize));
             });
         }
 
         return chain.then(pointer => {
-
-            progress({ blockNumber: blockCount, chunkSize: chunkSize, currentPointer: pointer, fileSize: fileSize, stage: "finishing", totalBlocks: blockCount });
-
-            return self.finishUpload(uploadId, pointer, file.slice(pointer));
-
-        }).then(_ => {
-
-            return self;
+            progress({ uploadId, blockNumber: blockCount, chunkSize, currentPointer: pointer, fileSize, stage: "finishing", totalBlocks: blockCount });
+            return this.finishUpload(uploadId, pointer, file.slice(pointer));
         });
     }
 
@@ -395,8 +372,17 @@ export class File extends SharePointQueryableShareableFile {
      * @param fragment The file contents.
      * @returns The size of the total uploaded data in bytes.
      */
-    private startUpload(uploadId: string, fragment: ArrayBuffer | Blob): Promise<number> {
-        return this.clone(File, `startUpload(uploadId=guid'${uploadId}')`, false).postCore<string>({ body: fragment }).then(n => parseFloat(n));
+    protected startUpload(uploadId: string, fragment: ArrayBuffer | Blob): Promise<number> {
+        return this.clone(File, `startUpload(uploadId=guid'${uploadId}')`, false)
+            .postCore<string>({ body: fragment })
+            .then(n => {
+                // When OData=verbose the payload has the following shape:
+                // { StartUpload: "10485760" }
+                if (typeof n === "object") {
+                    n = (n as any).StartUpload;
+                }
+                return parseFloat(n);
+            });
     }
 
     /**
@@ -410,8 +396,17 @@ export class File extends SharePointQueryableShareableFile {
      * @param fragment The file contents.
      * @returns The size of the total uploaded data in bytes.
      */
-    private continueUpload(uploadId: string, fileOffset: number, fragment: ArrayBuffer | Blob): Promise<number> {
-        return this.clone(File, `continueUpload(uploadId=guid'${uploadId}',fileOffset=${fileOffset})`, false).postCore<string>({ body: fragment }).then(n => parseFloat(n));
+    protected continueUpload(uploadId: string, fileOffset: number, fragment: ArrayBuffer | Blob): Promise<number> {
+        return this.clone(File, `continueUpload(uploadId=guid'${uploadId}',fileOffset=${fileOffset})`, false)
+            .postCore<string>({ body: fragment })
+            .then(n => {
+                // When OData=verbose the payload has the following shape:
+                // { ContinueUpload: "20971520" }
+                if (typeof n === "object") {
+                    n = (n as any).ContinueUpload;
+                }
+                return parseFloat(n);
+            });
     }
 
     /**
@@ -424,12 +419,13 @@ export class File extends SharePointQueryableShareableFile {
      * @param fragment The file contents.
      * @returns The newly uploaded file.
      */
-    private finishUpload(uploadId: string, fileOffset: number, fragment: ArrayBuffer | Blob): Promise<FileAddResult> {
+    protected finishUpload(uploadId: string, fileOffset: number, fragment: ArrayBuffer | Blob): Promise<FileAddResult> {
         return this.clone(File, `finishUpload(uploadId=guid'${uploadId}',fileOffset=${fileOffset})`, false)
-            .postCore<{ ServerRelativeUrl: string }>({ body: fragment }).then((response) => {
+            .postCore<{ ServerRelativeUrl: string }>({ body: fragment })
+            .then(response => {
                 return {
                     data: response,
-                    file: new File(response.ServerRelativeUrl),
+                    file: new File(odataUrlFrom(response)),
                 };
             });
     }
@@ -439,21 +435,13 @@ export class File extends SharePointQueryableShareableFile {
  * Describes a collection of Version objects
  *
  */
+@defaultPath("versions")
 export class Versions extends SharePointQueryableCollection {
 
-    /**
-     * Creates a new instance of the File class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this fields collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "versions") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Gets a version by id
-     *
-     * @param versionId The id of the version to retrieve
+    /**	
+     * Gets a version by id	
+     *	
+     * @param versionId The id of the version to retrieve	
      */
     public getById(versionId: number): Version {
         const v = new Version(this);
@@ -515,7 +503,6 @@ export class Versions extends SharePointQueryableCollection {
     }
 }
 
-
 /**
  * Describes a single Version instance
  *
@@ -527,14 +514,21 @@ export class Version extends SharePointQueryableInstance {
     *
     * @param eTag Value used in the IF-Match header, by default "*"
     */
-    public delete(eTag = "*"): Promise<void> {
-        return this.postCore({
-            headers: {
-                "IF-Match": eTag,
-                "X-HTTP-Method": "DELETE",
-            },
-        });
-    }
+    public delete = this._deleteWithETag;
+
+    // /**
+    // * Delete a specific version of a file.
+    // *
+    // * @param eTag Value used in the IF-Match header, by default "*"
+    // */
+    // public delete(eTag = "*"): Promise<void> {
+    //     return this.postCore({
+    //         headers: {
+    //             "IF-Match": eTag,
+    //             "X-HTTP-Method": "DELETE",
+    //         },
+    //     });
+    // }
 }
 
 export enum CheckinType {
@@ -562,4 +556,5 @@ export enum TemplateFileType {
     StandardPage = 0,
     WikiPage = 1,
     FormPage = 2,
+    ClientSidePage = 3,
 }

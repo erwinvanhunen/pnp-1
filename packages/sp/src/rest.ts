@@ -1,4 +1,4 @@
-import { Search, SearchQuery, SearchResults, SearchQueryBuilder } from "./search";
+import { Search, SearchResults, SearchQueryInit } from "./search";
 import { SearchSuggest, SearchSuggestQuery, SearchSuggestResult } from "./searchsuggest";
 import { Site } from "./site";
 import { Web } from "./webs";
@@ -6,11 +6,17 @@ import { ConfigOptions } from "@pnp/common";
 import { UserProfileQuery } from "./userprofiles";
 import { INavigationService, NavigationService } from "./navigation";
 import { SPBatch } from "./batch";
+import { SocialQuery, SocialMethods } from "./social";
+import { SiteScripts, SiteScriptUtilityMethods } from "./sitescripts";
+import { SiteDesigns, SiteDesignsUtilityMethods } from "./sitedesigns";
 import { UtilityMethod, UtilityMethods } from "./utilities";
+import { SharePointQueryableConstructor, SharePointQueryable } from "./sharepointqueryable";
 import {
     setup as _setup,
     SPConfiguration,
 } from "./config/splibconfig";
+import { ICachingOptions } from "@pnp/odata";
+import { HubSites } from "./hubsites";
 
 /**
  * Root of the SharePoint REST module
@@ -60,7 +66,7 @@ export class SPRest {
             finalQuery = query;
         }
 
-        return new SearchSuggest(this._baseUrl).configure(this._options).execute(finalQuery);
+        return this.create(SearchSuggest).execute(finalQuery);
     }
 
     /**
@@ -68,19 +74,18 @@ export class SPRest {
      *
      * @param query The SearchQuery definition
      */
-    public search(query: string | SearchQuery | SearchQueryBuilder): Promise<SearchResults> {
+    public search(query: SearchQueryInit): Promise<SearchResults> {
+        return this.create(Search).execute(query);
+    }
 
-        let finalQuery: SearchQuery;
-
-        if (typeof query === "string") {
-            finalQuery = { Querytext: query };
-        } else if (query instanceof SearchQueryBuilder) {
-            finalQuery = (query as SearchQueryBuilder).toSearchQuery();
-        } else {
-            finalQuery = query;
-        }
-
-        return new Search(this._baseUrl).configure(this._options).execute(finalQuery);
+    /**
+     * Executes the provided search query, caching the results
+     * 
+     * @param query The SearchQuery definition
+     * @param options The set of caching options used to store the results
+     */
+    public searchWithCaching(query: SearchQueryInit, options?: ICachingOptions): Promise<SearchResults> {
+        return this.create(Search).usingCaching(options).execute(query);
     }
 
     /**
@@ -88,7 +93,7 @@ export class SPRest {
      *
      */
     public get site(): Site {
-        return new Site(this._baseUrl).configure(this._options);
+        return this.create(Site);
     }
 
     /**
@@ -96,7 +101,7 @@ export class SPRest {
      *
      */
     public get web(): Web {
-        return new Web(this._baseUrl).configure(this._options);
+        return this.create(Web);
     }
 
     /**
@@ -104,14 +109,21 @@ export class SPRest {
      *
      */
     public get profiles(): UserProfileQuery {
-        return new UserProfileQuery(this._baseUrl).configure(this._options);
+        return this.create(UserProfileQuery);
+    }
+
+    /**
+     * Access to social methods
+     */
+    public get social(): SocialMethods {
+        return this.create(SocialQuery);
     }
 
     /**
      * Access to the site collection level navigation service
      */
     public get navigation(): INavigationService {
-        return new NavigationService();
+        return this.create(NavigationService);
     }
 
     /**
@@ -126,7 +138,47 @@ export class SPRest {
      * Static utilities methods from SP.Utilities.Utility
      */
     public get utility(): UtilityMethods {
-        return new UtilityMethod(this._baseUrl, "").configure(this._options);
+        return this.create(UtilityMethod, "");
+    }
+
+    /**
+     * Access to sitescripts methods
+     */
+    public get siteScripts(): SiteScriptUtilityMethods {
+        return this.create(SiteScripts, "");
+    }
+
+    /**
+     * Access to sitedesigns methods
+     */
+    public get siteDesigns(): SiteDesignsUtilityMethods {
+        return this.create(SiteDesigns, "");
+    }
+
+    /**
+     * Access to Hub Site methods
+     */
+    public get hubSites(): HubSites {
+        return this.create(HubSites);
+    }
+
+    /**
+     * Gets the Web instance representing the tenant app catalog web
+     */
+    public getTenantAppCatalogWeb(): Promise<Web> {
+        return this.create(Web, "_api/SP_TenantSettings_Current").get<{ CorporateCatalogUrl: string }>().then(r => {
+            return (new Web(r.CorporateCatalogUrl)).configure(this._options);
+        });
+    }
+
+    /**
+     * Handles creating and configuring the objects returned from this class
+     * 
+     * @param fm The factory method used to create the instance
+     * @param path Optional additional path information to pass to the factory method
+     */
+    private create<T extends SharePointQueryable>(fm: SharePointQueryableConstructor<T>, path?: string): T {
+        return new fm(this._baseUrl, path).configure(this._options);
     }
 }
 

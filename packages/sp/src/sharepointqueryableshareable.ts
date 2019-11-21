@@ -1,5 +1,5 @@
-import { Util } from "@pnp/common";
-import { spGetEntityUrl } from "./odata";
+import { extend, combine, jsS } from "@pnp/common";
+import { odataUrlFrom } from "./odata";
 import {
     SharePointQueryable,
     SharePointQueryableInstance,
@@ -40,7 +40,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
 
         // clone using the factory and send the request
         return this.clone(SharePointQueryableShareable, "shareLink").postCore<ShareLinkResponse>({
-            body: JSON.stringify({
+            body: jsS({
                 request: {
                     createLink: true,
                     emailData: null,
@@ -69,7 +69,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
             loginNames = [loginNames];
         }
 
-        const userStr = JSON.stringify(loginNames.map(login => { return { Key: login }; }));
+        const userStr = jsS(loginNames.map(login => { return { Key: login }; }));
         const roleFilter = role === SharingRole.Edit ? RoleType.Contributor : RoleType.Reader;
 
         // start by looking up the role definition id we need to set the roleValue
@@ -78,7 +78,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
         return w.select("Id").filter(`RoleTypeKind eq ${roleFilter}`).get().then((def: { Id: number }[]) => {
 
             if (!Array.isArray(def) || def.length < 1) {
-                throw new Error(`Could not locate a role defintion with RoleTypeKind ${roleFilter}`);
+                throw Error(`Could not locate a role defintion with RoleTypeKind ${roleFilter}`);
             }
 
             let postBody = {
@@ -89,17 +89,17 @@ export class SharePointQueryableShareable extends SharePointQueryable {
                 useSimplifiedRoles: true,
             };
 
-            if (typeof emailData !== "undefined") {
+            if (emailData !== undefined) {
 
-                postBody = Util.extend(postBody, {
+                postBody = extend(postBody, {
                     emailBody: emailData.body,
-                    emailSubject: typeof emailData.subject !== "undefined" ? emailData.subject : "",
+                    emailSubject: emailData.subject !== undefined ? emailData.subject : "",
                     sendEmail: true,
                 });
             }
 
             return this.clone(SharePointQueryableShareable, "shareObject").postCore<SharingResult>({
-                body: JSON.stringify(postBody),
+                body: jsS(postBody),
             });
         });
     }
@@ -119,7 +119,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
         }
 
         // extend our options with some defaults
-        options = Util.extend(options, {
+        options = extend(options, {
             group: null,
             includeAnonymousLinkInEmail: false,
             propagateAcl: false,
@@ -133,7 +133,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
                 options.loginNames = [options.loginNames];
             }
 
-            const userStr = JSON.stringify(options.loginNames.map(login => { return { Key: login }; }));
+            const userStr = jsS(options.loginNames.map(login => { return { Key: login }; }));
 
             let postBody = {
                 peoplePickerInput: userStr,
@@ -141,11 +141,11 @@ export class SharePointQueryableShareable extends SharePointQueryable {
                 url: options.url,
             };
 
-            if (typeof options.emailData !== "undefined" && options.emailData !== null) {
+            if (options.emailData !== undefined && options.emailData !== null) {
 
-                postBody = Util.extend(postBody, {
+                postBody = extend(postBody, {
                     emailBody: options.emailData.body,
-                    emailSubject: typeof options.emailData.subject !== "undefined" ? options.emailData.subject : "Shared with you.",
+                    emailSubject: options.emailData.subject !== undefined ? options.emailData.subject : "Shared with you.",
                     sendEmail: true,
                 });
             }
@@ -162,7 +162,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
     public unshareObjectWeb(url: string): Promise<SharingResult> {
 
         return this.clone(SharePointQueryableShareable, "unshareObject").postCore<SharingResult>({
-            body: JSON.stringify({
+            body: jsS({
                 url: url,
             }),
         });
@@ -176,7 +176,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
     public checkPermissions(recipients: SharingRecipient[]): Promise<SharingEntityPermission[]> {
 
         return this.clone(SharePointQueryableShareable, "checkPermissions").postCore<SharingEntityPermission[]>({
-            body: JSON.stringify({
+            body: jsS({
                 recipients: recipients,
             }),
         });
@@ -186,11 +186,14 @@ export class SharePointQueryableShareable extends SharePointQueryable {
      * Get Sharing Information.
      *
      * @param request The SharingInformationRequest Object.
+     * @param expands Expand more fields.
+     * 
      */
-    public getSharingInformation(request: SharingInformationRequest = null): Promise<SharingInformation> {
+    public getSharingInformation(request: SharingInformationRequest = null, expands?: string[]): Promise<SharingInformation> {
 
-        return this.clone(SharePointQueryableShareable, "getSharingInformation").postCore<SharingInformation>({
-            body: JSON.stringify({
+        const q = this.clone(SharePointQueryableShareable, "getSharingInformation");
+        return q.expand.apply(q, expands).postCore({
+            body: jsS({
                 request: request,
             }),
         });
@@ -204,7 +207,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
     public getObjectSharingSettings(useSimplifiedRoles = true): Promise<ObjectSharingSettings> {
 
         return this.clone(SharePointQueryableShareable, "getObjectSharingSettings").postCore<ObjectSharingSettings>({
-            body: JSON.stringify({
+            body: jsS({
                 useSimplifiedRoles: useSimplifiedRoles,
             }),
         });
@@ -226,7 +229,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
     public deleteLinkByKind(kind: SharingLinkKind): Promise<void> {
 
         return this.clone(SharePointQueryableShareable, "deleteLinkByKind").postCore({
-            body: JSON.stringify({ linkKind: kind }),
+            body: jsS({ linkKind: kind }),
         });
     }
 
@@ -239,7 +242,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
     public unshareLink(kind: SharingLinkKind, shareId = "00000000-0000-0000-0000-000000000000"): Promise<void> {
 
         return this.clone(SharePointQueryableShareable, "unshareLink").postCore({
-            body: JSON.stringify({ linkKind: kind, shareId: shareId }),
+            body: jsS({ linkKind: kind, shareId: shareId }),
         });
     }
 
@@ -252,9 +255,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
     protected getRoleValue(role: SharingRole, group: RoleType): Promise<string> {
 
         // we will give group precedence, because we had to make a choice
-        if (typeof group !== "undefined" && group !== null) {
-
-
+        if (group !== undefined && group !== null) {
 
             switch (group) {
                 case RoleType.Contributor:
@@ -267,7 +268,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
                     const visitorGroup = new SharePointQueryableInstance("_api/web", "associatedvisitorgroup");
                     return visitorGroup.select("Id").get<{ Id: number }>().then(g => `group: ${g.Id}`);
                 default:
-                    throw new Error("Could not determine role value for supplied value. Contributor, Reader, and Guest are supported");
+                    throw Error("Could not determine role value for supplied value. Contributor, Reader, and Guest are supported");
             }
         } else {
 
@@ -276,7 +277,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
             const roleDefs = new SharePointQueryableCollection("_api/web", "roledefinitions");
             return roleDefs.select("Id").top(1).filter(`RoleTypeKind eq ${roleFilter}`).get<{ Id: number }[]>().then(def => {
                 if (def.length < 1) {
-                    throw new Error("Could not locate associated role definition for supplied role. Edit and View are supported");
+                    throw Error("Could not locate associated role definition for supplied role. Edit and View are supported");
                 }
                 return `role: ${def[0].Id}`;
             });
@@ -292,7 +293,7 @@ export class SharePointQueryableShareable extends SharePointQueryable {
         return this.getShareObjectWeb(this.toUrl()).then(web => {
 
             return web.expand("UsersWithAccessRequests", "GroupsSharedWith").as(SharePointQueryableShareable).postCore({
-                body: JSON.stringify(options),
+                body: jsS(options),
             });
         });
     }
@@ -315,7 +316,7 @@ export class SharePointQueryableShareableWeb extends SharePointQueryableSecurabl
 
             dependency();
 
-            return this.shareObject(Util.combinePaths(url, "/_layouts/15/aclinv.aspx?forSharing=1&mbypass=1"), loginNames, role, emailData);
+            return this.shareObject(combine(url, "/_layouts/15/aclinv.aspx?forSharing=1&mbypass=1"), loginNames, role, emailData);
         });
     }
 
@@ -410,10 +411,12 @@ export class SharePointQueryableShareableItem extends SharePointQueryableSecurab
      * Get Sharing Information.
      *
      * @param request The SharingInformationRequest Object.
+     * @param expands Expand more fields.
+     * 
      */
-    public getSharingInformation(request: SharingInformationRequest = null): Promise<SharingInformation> {
+    public getSharingInformation(request: SharingInformationRequest = null, expands?: string[]): Promise<SharingInformation> {
 
-        return this.clone(SharePointQueryableShareable, null).getSharingInformation(request);
+        return this.clone(SharePointQueryableShareable, null).getSharingInformation(request, expands);
     }
 
     /**
@@ -491,14 +494,16 @@ export class FileFolderShared extends SharePointQueryableInstance {
      * Get Sharing Information.
      *
      * @param request The SharingInformationRequest Object.
+     * @param expands Expand more fields.
+     * 
      */
-    public getSharingInformation(request: SharingInformationRequest = null): Promise<SharingInformation> {
+    public getSharingInformation(request: SharingInformationRequest = null, expands?: string[]): Promise<SharingInformation> {
 
         const dependency = this.addBatchDependency();
 
         return this.getShareable().then(shareable => {
             dependency();
-            return shareable.getSharingInformation(request);
+            return shareable.getSharingInformation(request, expands);
         });
     }
 
@@ -567,9 +572,9 @@ export class FileFolderShared extends SharePointQueryableInstance {
     protected getShareable(): Promise<SharePointQueryableShareable> {
 
         // sharing only works on the item end point, not the file one - so we create a folder instance with the item url internally
-        return this.clone(SharePointQueryableShareableFile, "listItemAllFields", false).select("odata.editlink").get().then(d => {
+        return this.clone(SharePointQueryableShareableFile, "listItemAllFields", false).select("odata.id").get().then(d => {
 
-            let shareable = new SharePointQueryableShareable(spGetEntityUrl(d));
+            let shareable = new SharePointQueryableShareable(odataUrlFrom(d));
 
             // we need to handle batching
             if (this.hasBatch) {

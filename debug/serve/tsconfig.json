@@ -5,7 +5,8 @@
         "baseUrl": ".",
         "rootDir": "../../",
         "outDir": "../../serve/",
-        "declaration": false,
+        "declaration": true,
+        "declarationMap": true,
         "types": [
             "sharepoint"
         ],
@@ -26,7 +27,7 @@
         "skipLibCheck": true,
         "experimentalDecorators": true
     },
-    "include": [
+    "files": [
         "./main.ts"
     ]
 }

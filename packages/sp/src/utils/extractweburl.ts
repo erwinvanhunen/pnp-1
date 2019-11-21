@@ -1,10 +1,16 @@
+import { stringIsNullOrEmpty } from "@pnp/common";
+
 export function extractWebUrl(candidateUrl: string) {
 
-    if (candidateUrl === null) {
+    if (stringIsNullOrEmpty(candidateUrl)) {
         return "";
     }
 
-    const index = candidateUrl.indexOf("_api/");
+    let index = candidateUrl.indexOf("_api/");
+
+    if (index < 0) {
+        index = candidateUrl.indexOf("_vti_bin/");
+    }
 
     if (index > -1) {
         return candidateUrl.substr(0, index);

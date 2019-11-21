@@ -1,10 +1,9 @@
-import { GraphQueryable, GraphQueryableInstance, GraphQueryableCollection } from "./graphqueryable";
+import { GraphQueryableInstance, GraphQueryableCollection, defaultPath } from "./graphqueryable";
+import { jsS } from "@pnp/common";
+import { User as IMember } from "@microsoft/microsoft-graph-types";
 
-export class Members extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "members") {
-        super(baseUrl, path);
-    }
+@defaultPath("members")
+export class Members extends GraphQueryableCollection<IMember[]> {
 
     /**
      * Use this API to add a member to an Office 365 group, a security group or a mail-enabled security group through
@@ -16,7 +15,7 @@ export class Members extends GraphQueryableCollection {
     public add(id: string): Promise<any> {
 
         return this.clone(Members, "$ref").postCore({
-            body: JSON.stringify({
+            body: jsS({
                 "@odata.id": id,
             }),
         });
@@ -32,12 +31,14 @@ export class Members extends GraphQueryableCollection {
     }
 }
 
-export class Member extends GraphQueryableInstance {
-
-}
-
-export class Owners extends Members {
-    constructor(baseUrl: string | GraphQueryable, path = "owners") {
-        super(baseUrl, path);
+export class Member extends GraphQueryableInstance<IMember> {
+    /**
+     * Removes this Member
+     */
+    public remove(): Promise<void> {
+        return this.clone(Member, "$ref").deleteCore();
     }
 }
+
+@defaultPath("owners")
+export class Owners extends Members { }

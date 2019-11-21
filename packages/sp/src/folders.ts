@@ -1,24 +1,17 @@
-import { Util, TypedHash } from "@pnp/common";
-import { SharePointQueryable, SharePointQueryableCollection, SharePointQueryableInstance } from "./sharepointqueryable";
+import { extend, TypedHash, jsS, isUrlAbsolute } from "@pnp/common";
+import { SharePointQueryable, SharePointQueryableCollection, SharePointQueryableInstance, defaultPath } from "./sharepointqueryable";
 import { SharePointQueryableShareableFolder } from "./sharepointqueryableshareable";
 import { Files } from "./files";
-import { spGetEntityUrl } from "./odata";
+import { odataUrlFrom } from "./odata";
 import { Item } from "./items";
+import { extractWebUrl } from "./utils/extractweburl";
 
 /**
  * Describes a collection of Folder objects
  *
  */
+@defaultPath("folders")
 export class Folders extends SharePointQueryableCollection {
-
-    /**
-     * Creates a new instance of the Folders class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this fields collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "folders") {
-        super(baseUrl, path);
-    }
 
     /**
      * Gets a folder by folder name
@@ -38,10 +31,27 @@ export class Folders extends SharePointQueryableCollection {
      */
     public add(url: string): Promise<FolderAddResult> {
 
-        return this.clone(Folders, `add('${url}')`).postCore().then((response) => {
+        return this.clone(Folders, `add('${url}')`).postCore().then((data) => {
             return {
-                data: response,
+                data,
                 folder: this.getByName(url),
+            };
+        });
+    }
+
+    /**
+     * Adds a new folder by path and should be prefered over add
+     * 
+     * @param serverRelativeUrl The server relative url of the new folder to create
+     * @param overwrite True to overwrite an existing folder, default false
+     */
+    public addUsingPath(serverRelativeUrl: string, overwrite = false): Promise<FolderAddResult> {
+
+        return this.clone(Folders, `addUsingPath(DecodedUrl='${serverRelativeUrl}',overwrite=${overwrite})`).postCore().then((data) => {
+
+            return {
+                data,
+                folder: new Folder(extractWebUrl(this.toUrl()), `_api/web/getFolderByServerRelativePath(decodedUrl='${serverRelativeUrl}')`),
             };
         });
     }
@@ -81,8 +91,8 @@ export class Folder extends SharePointQueryableShareableFolder {
      * Gets this folder's list item field values
      *
      */
-    public get listItemAllFields(): SharePointQueryableCollection {
-        return new SharePointQueryableCollection(this, "listItemAllFields");
+    public get listItemAllFields(): SharePointQueryableInstance {
+        return new SharePointQueryableInstance(this, "listItemAllFields");
     }
 
     /**
@@ -117,23 +127,7 @@ export class Folder extends SharePointQueryableShareableFolder {
         return new SharePointQueryableCollection(this, "uniqueContentTypeOrder");
     }
 
-    public update(properties: TypedHash<string | number | boolean>): Promise<FolderUpdateResult> {
-        const postBody: string = JSON.stringify(Util.extend({
-            "__metadata": { "type": "SP.Folder" },
-        }, properties));
-
-        return this.postCore({
-            body: postBody,
-            headers: {
-                "X-HTTP-Method": "MERGE",
-            },
-        }).then((data) => {
-            return {
-                data: data,
-                folder: this,
-            };
-        });
-    }
+    public update = this._update<FolderUpdateResult, TypedHash<any>>("SP.Folder", data => ({ data, folder: this }));
 
     /**
     * Delete this folder
@@ -164,7 +158,26 @@ export class Folder extends SharePointQueryableShareableFolder {
         const q = this.listItemAllFields;
         return q.select.apply(q, selects).get().then((d: any) => {
 
-            return Util.extend(new Item(spGetEntityUrl(d)), d);
+            return extend(new Item(odataUrlFrom(d)), d);
+        });
+    }
+
+    /**
+     * Moves a folder to destination path
+     *
+     * @param destUrl Absolute or relative URL of the destination path
+     */
+    public moveTo(destUrl: string): Promise<void> {
+        return this.select("ServerRelativeUrl").get().then(({ ServerRelativeUrl: srcUrl, ["odata.id"]: absoluteUrl }) => {
+            const webBaseUrl = extractWebUrl(absoluteUrl);
+            const hostUrl = webBaseUrl.replace("://", "___").split("/")[0].replace("___", "://");
+            const f = new Folder(webBaseUrl, "/_api/SP.MoveCopyUtil.MoveFolder()");
+            return f.postCore({
+                body: jsS({
+                    destUrl: isUrlAbsolute(destUrl) ? destUrl : `${hostUrl}${destUrl}`,
+                    srcUrl: `${hostUrl}${srcUrl}`,
+                }),
+            });
         });
     }
 }

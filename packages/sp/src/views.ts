@@ -1,25 +1,18 @@
-import { SharePointQueryable, SharePointQueryableCollection, SharePointQueryableInstance } from "./sharepointqueryable";
-import { Util, TypedHash } from "@pnp/common";
+import { SharePointQueryable, SharePointQueryableCollection, SharePointQueryableInstance, defaultPath } from "./sharepointqueryable";
+import { TypedHash, jsS } from "@pnp/common";
+import { metadata } from "./utils/metadata";
 
 /**
  * Describes the views available in the current context
  *
  */
+@defaultPath("views")
 export class Views extends SharePointQueryableCollection {
 
-    /**
-     * Creates a new instance of the Views class
-     *
-     * @param baseUrl The url or SharePointQueryable which forms the parent of this fields collection
-     */
-    constructor(baseUrl: string | SharePointQueryable, path = "views") {
-        super(baseUrl, path);
-    }
-
-    /**
-     * Gets a view by guid id
-     *
-     * @param id The GUID id of the view
+    /**	  
+     * Gets a view by guid id	    
+     *	   
+     * @param id The GUID id of the view	    
      */
     public getById(id: string): View {
         const v = new View(this);
@@ -45,10 +38,9 @@ export class Views extends SharePointQueryableCollection {
      */
     public add(title: string, personalView = false, additionalSettings: TypedHash<any> = {}): Promise<ViewAddResult> {
 
-        const postBody = JSON.stringify(Util.extend({
+        const postBody = jsS(Object.assign(metadata("SP.View"), {
             "PersonalView": personalView,
             "Title": title,
-            "__metadata": { "type": "SP.View" },
         }, additionalSettings));
 
         return this.clone(Views, null).postCore<{ Id: string }>({ body: postBody }).then((data) => {
@@ -59,7 +51,6 @@ export class Views extends SharePointQueryableCollection {
         });
     }
 }
-
 
 /**
  * Describes a single View instance
@@ -76,36 +67,13 @@ export class View extends SharePointQueryableInstance {
      *
      * @param properties A plain object hash of values to update for the view
      */
-    public update(properties: TypedHash<any>): Promise<ViewUpdateResult> {
-
-        const postBody = JSON.stringify(Util.extend({
-            "__metadata": { "type": "SP.View" },
-        }, properties));
-
-        return this.postCore({
-            body: postBody,
-            headers: {
-                "X-HTTP-Method": "MERGE",
-            },
-        }).then((data) => {
-            return {
-                data: data,
-                view: this,
-            };
-        });
-    }
+    public update = this._update<ViewUpdateResult, TypedHash<any>>("SP.View", data => ({ data, view: this }));
 
     /**
      * Delete this view
      *
      */
-    public delete(): Promise<void> {
-        return this.postCore({
-            headers: {
-                "X-HTTP-Method": "DELETE",
-            },
-        });
-    }
+    public delete = this._delete;
 
     /**
      * Returns the list view as HTML.
@@ -114,13 +82,24 @@ export class View extends SharePointQueryableInstance {
     public renderAsHtml(): Promise<string> {
         return this.clone(SharePointQueryable, "renderashtml").get();
     }
+
+    /**
+     * Sets the view schema
+     * 
+     * @param viewXml The view XML to set
+     */
+    public setViewXml(viewXml: string): Promise<void> {
+
+        return this.clone(View, "SetViewXml").postCore({
+            body: jsS({
+                viewXml,
+            }),
+        });
+    }
 }
 
+@defaultPath("viewfields")
 export class ViewFields extends SharePointQueryableCollection {
-    constructor(baseUrl: string | SharePointQueryable, path = "viewfields") {
-        super(baseUrl, path);
-    }
-
     /**
      * Gets a value that specifies the XML schema that represents the collection.
      */
@@ -145,7 +124,7 @@ export class ViewFields extends SharePointQueryableCollection {
      */
     public move(fieldInternalName: string, index: number): Promise<void> {
         return this.clone(ViewFields, "moveviewfieldto").postCore({
-            body: JSON.stringify({ "field": fieldInternalName, "index": index }),
+            body: jsS({ "field": fieldInternalName, "index": index }),
         });
     }
 
@@ -175,4 +154,3 @@ export interface ViewUpdateResult {
     view: View;
     data: any;
 }
-

@@ -4,17 +4,19 @@
   "description": "pnp - <%= description %>",
   "main": "./index.js",
   "typings": "./index",
-  "dependencies": {},
+  "dependencies": {
+    "tslib": "1.9.3"
+  },
   "author": {
     "name": "Microsoft and other contributors"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnp/pnp/issues"
+    "url": "https://github.com/pnp/pnpjs/issues"
   },
-  "homepage": "https://github.com/pnp/pnp",
+  "homepage": "https://github.com/pnp/pnpjs",
   "repository": {
     "type": "git",
-    "url": "git://github.com/pnp/pnp"
+    "url": "git:github.com/pnp/pnpjs"
   }
 }

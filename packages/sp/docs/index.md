@@ -97,6 +97,7 @@ sp.web.select("Title").get().then(w => {
 * [Alias Parameters](alias-parameters.md)
 * [ALM api](alm.md)
 * [Attachments](attachments.md)
+* [Client-side Pages](client-side-pages.md)
 * [Features](features.md)
 * [Fields](fields.md)
 * [Files](files.md)
@@ -106,6 +107,15 @@ sp.web.select("Title").get().then(w => {
 * [Related Items](related-items.md)
 * [Search](search.md)
 * [Sharing](sharing.md)
+* [Site Designs](sitedesigns.md)
+* [Social](social.md)
 * [SP.Utilities.Utility](sp-utilities-utility.md)
+* [Tenant Properties](tenant-properties.md)
 * [Views](views.md)
 * [Webs](webs.md)
+* [Comments and Likes](comments-likes.md)
+
+## UML
+![Graphical UML diagram](../../documentation/img/pnpjs-sp-uml.svg)
+
+Graphical UML diagram of @pnp/sp. Right-click the diagram and open in new tab if it is too small.

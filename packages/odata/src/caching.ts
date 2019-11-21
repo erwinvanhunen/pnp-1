@@ -1,5 +1,5 @@
-import { ODataParser } from "./core";
-import { RuntimeConfig, Util, PnPClientStore, PnPClientStorage } from "@pnp/common";
+import { ODataParser } from "./parsers";
+import { RuntimeConfig, dateAdd, PnPClientStore, PnPClientStorage } from "@pnp/common";
 
 export interface ICachingOptions {
     expiration?: Date;
@@ -11,7 +11,7 @@ export class CachingOptions implements ICachingOptions {
 
     protected static storage = new PnPClientStorage();
 
-    public expiration = Util.dateAdd(new Date(), "second", RuntimeConfig.defaultCachingTimeoutSeconds);
+    public expiration = dateAdd(new Date(), "second", RuntimeConfig.defaultCachingTimeoutSeconds);
 
     public storeName: "session" | "local" = RuntimeConfig.defaultCachingStore;
 
@@ -29,19 +29,17 @@ export class CachingOptions implements ICachingOptions {
 export class CachingParserWrapper<T> implements ODataParser<T> {
 
     constructor(
-        private _parser: ODataParser<T>,
-        private _cacheOptions: CachingOptions) { }
+        public parser: ODataParser<T>,
+        public cacheOptions: CachingOptions) { }
 
     public parse(response: Response): Promise<T> {
+        return this.parser.parse(response).then(r => this.cacheData(r));
+    }
 
-        // add this to the cache based on the options
-        return this._parser.parse(response).then(data => {
-
-            if (this._cacheOptions.store !== null) {
-                this._cacheOptions.store.put(this._cacheOptions.key, data, this._cacheOptions.expiration);
-            }
-
-            return data;
-        });
+    protected cacheData(data: any): any {
+        if (this.cacheOptions.store !== null) {
+            this.cacheOptions.store.put(this.cacheOptions.key, data, this.cacheOptions.expiration);
+        }
+        return data;
     }
 }

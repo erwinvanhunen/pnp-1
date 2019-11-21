@@ -1,14 +1,8 @@
-import { Dictionary } from "../";
-
 export default class MockStorage implements Storage {
-    constructor(private _store = new Dictionary<string>(), private _length = 0) { }
+    constructor(private _store = new Map<string, any>()) { }
 
     public get length(): number {
-        return this._store.count;
-    }
-
-    public set length(i: number) {
-        this._length = i;
+        return this._store.size;
     }
 
     public clear(): void {
@@ -20,15 +14,15 @@ export default class MockStorage implements Storage {
     }
 
     public key(index: number): string {
-        return this._store.getKeys()[index];
+        return Array.from(this._store)[index][0];
     }
 
     public removeItem(key: string): void {
-        this._store.remove(key);
+        this._store.delete(key);
     }
 
     public setItem(key: string, data: string): void {
-        this._store.add(key, data);
+        this._store.set(key, data);
     }
 
     [key: string]: any;

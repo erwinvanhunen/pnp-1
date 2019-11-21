@@ -12,22 +12,24 @@ const gulp = require("gulp"),
     tslint = require("tslint"),
     pump = require("pump");
 
+// const tscPath = path.join("./node_modules/.bin/tsc");
+
 gulp.task("lint", (done) => {
 
-    var program = tslint.Linter.createProgram("./packages/tsconfig.json");
+    const config = tslint.Configuration.loadConfigurationFromPath("./tslint.json");
 
     pump([
         gulp.src([
-            "./packages/**/*.ts",
+            "./packages/**/src/**/*.ts",
             "!./packages/**/*.test.ts",
             "!**/node_modules/**",
             "!**/*.d.ts"
         ]),
-        gulpTslint({ formatter: "prose", program }),
+        gulpTslint({ configuration: config, formatter: "prose" }),
         gulpTslint.report({ emitError: false }),
     ], (err) => {
 
-        if (typeof err !== "undefined") {
+        if (err !== undefined) {
             done(err);
         } else {
             done();
@@ -37,10 +39,10 @@ gulp.task("lint", (done) => {
 
 gulp.task("lint:tests", (done) => {
 
-    var program = tslint.Linter.createProgram("./packages/tsconfig.json");
+    var program = tslint.Linter.createProgram("./test/tsconfig.json");
 
     // we need to load and override the configuration
-    let config = tslint.Configuration.loadConfigurationFromPath("./tslint.json");
+    const config = tslint.Configuration.loadConfigurationFromPath("./tslint.json");
     config.rules.set("no-unused-expression", { ruleSeverity: "off" });
 
     pump([
@@ -52,12 +54,12 @@ gulp.task("lint:tests", (done) => {
         gulpTslint({
             configuration: config,
             formatter: "prose",
-            program: program,
+            program,
         }),
         gulpTslint.report({ emitError: false }),
     ], (err) => {
 
-        if (typeof err !== "undefined") {
+        if (err !== undefined) {
             done(err);
         } else {
             done();

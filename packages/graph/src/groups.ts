@@ -1,11 +1,13 @@
-import { GraphQueryable, GraphQueryableInstance, GraphQueryableCollection } from "./graphqueryable";
+import { GraphQueryableInstance, GraphQueryableCollection, defaultPath } from "./graphqueryable";
 import { Members, Owners } from "./members";
-import { Util, TypedHash } from "@pnp/common";
+import { extend, TypedHash, jsS } from "@pnp/common";
 import { Calendar, Events } from "./calendars";
 import { Conversations, Senders } from "./conversations";
-import { Event as IEvent } from "@microsoft/microsoft-graph-types";
-import { Plans } from "./plans";
+import { Event as IEvent, Group as IGroup } from "@microsoft/microsoft-graph-types";
+import { Plans } from "./planner";
 import { Photo } from "./photos";
+import { Team } from "./teams";
+import { TeamProperties } from "./types";
 
 export enum GroupType {
     /**
@@ -26,11 +28,8 @@ export enum GroupType {
  * Describes a collection of Field objects
  *
  */
-export class Groups extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "groups") {
-        super(baseUrl, path);
-    }
+@defaultPath("groups")
+export class Groups extends GraphQueryableCollection<IGroup[]> {
 
     /**
      * Gets a group from the collection using the specified id
@@ -49,9 +48,9 @@ export class Groups extends GraphQueryableCollection {
      * @param groupType Type of group being created
      * @param additionalProperties A plain object collection of additional properties you want to set on the new group
      */
-    public add(name: string, mailNickname: string, groupType: GroupType, additionalProperties: TypedHash<string | number | boolean> = {}): Promise<GroupAddResult> {
+    public add(name: string, mailNickname: string, groupType: GroupType, additionalProperties: TypedHash<any> = {}): Promise<GroupAddResult> {
 
-        let postBody = Util.extend({
+        let postBody = extend({
             displayName: name,
             mailEnabled: groupType === GroupType.Office365,
             mailNickname: mailNickname,
@@ -61,13 +60,13 @@ export class Groups extends GraphQueryableCollection {
         // include a group type if required
         if (groupType !== GroupType.Security) {
 
-            postBody = Util.extend(postBody, {
-                groupTypes: [groupType === GroupType.Office365 ? "Unified" : "DynamicMembership"],
+            postBody = extend(postBody, {
+                groupTypes: groupType === GroupType.Office365 ? ["Unified"] : ["DynamicMembership"],
             });
         }
 
         return this.postCore({
-            body: JSON.stringify(postBody),
+            body: jsS(postBody),
         }).then(r => {
             return {
                 data: r,
@@ -80,12 +79,12 @@ export class Groups extends GraphQueryableCollection {
 /**
  * Represents a group entity
  */
-export class Group extends GraphQueryableInstance {
+export class Group extends GraphQueryableInstance<IGroup> {
 
     /**
      * The calendar associated with this group
      */
-    public get caldendar(): Calendar {
+    public get calendar(): Calendar {
         return new Calendar(this, "calendar");
     }
 
@@ -107,7 +106,7 @@ export class Group extends GraphQueryableInstance {
      * The collection of plans for this group
      */
     public get plans(): Plans {
-        return new Plans(this);
+        return new Plans(this, "planner/plans");
     }
 
     /**
@@ -146,11 +145,42 @@ export class Group extends GraphQueryableInstance {
     }
 
     /**
+     * Gets the team associated with this group, if it exists
+     */
+    public get team(): Team {
+        return new Team(this);
+    }
+
+    /**
      * Add the group to the list of the current user's favorite groups. Supported for only Office 365 groups
      */
     public addFavorite(): Promise<void> {
-
         return this.clone(Group, "addFavorite").postCore();
+    }
+
+    /**
+     * Creates a Microsoft Team associated with this group
+     * 
+     * @param properties Initial properties for the new Team
+     */
+    public createTeam(properties: TeamProperties): Promise<any> {
+
+        return this.clone(Group, "team").putCore({
+            body: jsS(properties),
+        });
+    }
+
+    /**
+     * Returns all the groups and directory roles that the specified group is a member of. The check is transitive
+     * 
+     * @param securityEnabledOnly 
+     */
+    public getMemberObjects(securityEnabledOnly = false): Promise<{ value: string[] }> {
+        return this.clone(Group, "getMemberObjects").postCore({
+            body: jsS({
+                securityEnabledOnly: securityEnabledOnly,
+            }),
+        });
     }
 
     /**
@@ -161,8 +191,21 @@ export class Group extends GraphQueryableInstance {
     public getMemberGroups(securityEnabledOnly = false): Promise<{ value: string[] }> {
 
         return this.clone(Group, "getMemberGroups").postCore({
-            body: JSON.stringify({
+            body: jsS({
                 securityEnabledOnly: securityEnabledOnly,
+            }),
+        });
+    }
+
+    /**
+     * Check for membership in a specified list of groups, and returns from that list those groups of which the specified user, group, or directory object is a member. 
+     * This function is transitive.
+     * @param groupIds A collection that contains the object IDs of the groups in which to check membership. Up to 20 groups may be specified.
+     */
+    public checkMemberGroups(groupIds: String[]): Promise<{ value: string[] }> {
+        return this.clone(Group, "checkMemberGroups").postCore({
+            body: jsS({
+                groupIds: groupIds,
             }),
         });
     }
@@ -179,10 +222,10 @@ export class Group extends GraphQueryableInstance {
      * 
      * @param properties Set of properties of this group to update
      */
-    public update(properties: TypedHash<string | number | boolean | string[]>): Promise<void> {
+    public update(properties: IGroup): Promise<void> {
 
         return this.patchCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         });
     }
 
@@ -226,8 +269,8 @@ export class Group extends GraphQueryableInstance {
     public getCalendarView(start: Date, end: Date): Promise<IEvent[]> {
 
         const view = this.clone(Group, "calendarView");
-        view.query.add("startDateTime", start.toISOString());
-        view.query.add("endDateTime", end.toISOString());
+        view.query.set("startDateTime", start.toISOString());
+        view.query.set("endDateTime", end.toISOString());
         return view.get();
     }
 }

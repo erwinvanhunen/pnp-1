@@ -1,8 +1,13 @@
-import { GraphQueryable, GraphQueryableInstance, GraphQueryableCollection } from "./graphqueryable";
-import { TypedHash } from "@pnp/common";
+import { GraphQueryable, GraphQueryableInstance, GraphQueryableCollection, defaultPath } from "./graphqueryable";
+import { TypedHash, jsS } from "@pnp/common";
 import { Attachments } from "./attachments";
-
-import { ConversationThread as IConversationThread, Post as IPost, Recipient as IRecipient } from "@microsoft/microsoft-graph-types";
+import {
+    ConversationThread as IConversationThread,
+    Post as IPost,
+    Recipient as IRecipient,
+    Conversation as IConversation,
+    User as IUser,
+} from "@microsoft/microsoft-graph-types";
 
 /**
  * Information used to forward a post
@@ -12,11 +17,8 @@ export interface PostForwardInfo {
     toRecipients: IRecipient[];
 }
 
-export class Conversations extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "conversations") {
-        super(baseUrl, path);
-    }
+@defaultPath("conversations")
+export class Conversations extends GraphQueryableCollection<IConversation[]> {
 
     /**
      * Create a new conversation by including a thread and a post.
@@ -26,7 +28,7 @@ export class Conversations extends GraphQueryableCollection {
     public add(properties: TypedHash<any>): Promise<any> {
 
         return this.postCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         });
     }
 
@@ -40,11 +42,8 @@ export class Conversations extends GraphQueryableCollection {
     }
 }
 
-export class Threads extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "threads") {
-        super(baseUrl, path);
-    }
+@defaultPath("threads")
+export class Threads extends GraphQueryableCollection<IConversationThread[]> {
 
     /**
      * Gets a thread from this collection by id
@@ -64,16 +63,13 @@ export class Threads extends GraphQueryableCollection {
     public add(properties: IConversationThread): Promise<{ id: string }> {
 
         return this.postCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         });
     }
 }
 
-export class Posts extends GraphQueryableCollection {
-
-    constructor(baseUrl: string | GraphQueryable, path = "posts") {
-        super(baseUrl, path);
-    }
+@defaultPath("posts")
+export class Posts extends GraphQueryableCollection<IPost[]> {
 
     /**
      * Gets a thread from this collection by id
@@ -93,12 +89,12 @@ export class Posts extends GraphQueryableCollection {
     public add(properties: IPost): Promise<{ id: string }> {
 
         return this.postCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         });
     }
 }
 
-export class Conversation extends GraphQueryableInstance {
+export class Conversation extends GraphQueryableInstance<IConversation> {
 
     /**
      * Get all the threads in a group conversation.
@@ -113,7 +109,7 @@ export class Conversation extends GraphQueryableInstance {
     public update(properties: TypedHash<any>): Promise<void> {
 
         return this.patchCore({
-            body: JSON.stringify(properties),
+            body: jsS(properties),
         });
     }
 
@@ -142,7 +138,7 @@ export class Thread extends GraphQueryableInstance {
     public reply(post: IPost): Promise<void> {
 
         return this.clone(Thread, "reply").postCore({
-            body: JSON.stringify({
+            body: jsS({
                 post: post,
             }),
         });
@@ -156,7 +152,7 @@ export class Thread extends GraphQueryableInstance {
     }
 }
 
-export class Post extends GraphQueryableInstance {
+export class Post extends GraphQueryableInstance<IPost> {
 
     public get attachments(): Attachments {
         return new Attachments(this);
@@ -174,7 +170,7 @@ export class Post extends GraphQueryableInstance {
      */
     public forward(info: PostForwardInfo): Promise<void> {
         return this.clone(Post, "forward").postCore({
-            body: JSON.stringify(info),
+            body: jsS(info),
         });
     }
 
@@ -186,14 +182,14 @@ export class Post extends GraphQueryableInstance {
     public reply(post: IPost): Promise<void> {
 
         return this.clone(Post, "reply").postCore({
-            body: JSON.stringify({
+            body: jsS({
                 post: post,
             }),
         });
     }
 }
 
-export class Senders extends GraphQueryableCollection {
+export class Senders extends GraphQueryableCollection<IUser[]> {
 
     constructor(baseUrl: string | GraphQueryable, path?: string) {
         super(baseUrl, path);
@@ -206,7 +202,7 @@ export class Senders extends GraphQueryableCollection {
     public add(id: string): Promise<any> {
 
         return this.clone(Senders, "$ref").postCore({
-            body: JSON.stringify({
+            body: jsS({
                 "@odata.id": id,
             }),
         });
@@ -220,7 +216,7 @@ export class Senders extends GraphQueryableCollection {
     public remove(id: string): Promise<void> {
 
         const remover = this.clone(Senders, "$ref");
-        remover.query.add("$id", id);
+        remover.query.set("$id", id);
         return remover.deleteCore();
     }
 }
